@@ -1,4 +1,5 @@
 use super::filter::merge_filter;
+use super::filter::KernelNameFilter;
 use super::logging_aspect::LoggingAspect;
 use super::monitor_aspect::MonitorAspect;
 use crate::monitor::kernel_exec_time_aspect::KernelExecTimeAspect;
@@ -51,6 +52,13 @@ pub static ASPECTS: Lazy<Box<dyn MonitorAspect + Send + Sync>> = Lazy::new(|| {
     // Add more aspects here
     let aspect = LoggingAspect {};
     let aspect = merge_aspect(aspect, KernelExecTimeAspect);
-    let merged_aspect = merge_filter(ThreadLocalEnabler {}, aspect);
+    
+    // Add kernel name filter
+    let kernel_filter = KernelNameFilter::new();
+    let merged_aspect = merge_filter(kernel_filter, aspect);
+    
+    // Add thread local enabler
+    let merged_aspect = merge_filter(ThreadLocalEnabler {}, merged_aspect);
+    
     Box::new(merged_aspect) as Box<dyn MonitorAspect + Send + Sync>
 });
