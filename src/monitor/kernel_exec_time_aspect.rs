@@ -52,6 +52,13 @@ static EVENT_POOL: Lazy<Pool<CUDAEvent>> = Lazy::new(|| {
     })
 });
 
+static BASE_EVENT: Lazy<CUDAEvent> = Lazy::new(|| {
+    CUDAEvent::new().expect("Failed to create CUDAEvent (base)")
+});
+static BASE_INIT_LOCK: Lazy<std::sync::Mutex<()>> = Lazy::new(|| std::sync::Mutex::new(()));
+static BASE_RECORDED: Lazy<std::sync::atomic::AtomicBool> =
+    Lazy::new(|| std::sync::atomic::AtomicBool::new(false));
+
 thread_local! {
     static LABEL: RefCell<String> = RefCell::new(String::new());
     static START_EVENT: RefCell<Option<CUDAEvent>> = RefCell::new(None);
@@ -94,11 +101,13 @@ enum LogMessage<'a> {
     Start {
         kern_label: &'a str,
         user_label: &'a str,
+        timestamp_ms: f32,
     },
     Complete {
         kern_label: &'a str,
         user_label: &'a str,
         duration_ms: f32,
+        timestamp_ms: f32,
     },
 }
 
@@ -120,11 +129,21 @@ impl EventLogger {
                 _ => return,
             }
 
+            // compute start timestamp relative to base
+            let start_ts_ms = match start.since(&BASE_EVENT) {
+                Ok(ts) => ts,
+                Err(err) => {
+                    log::error!("failed to compute start timestamp: {}", err);
+                    0.0
+                }
+            };
+
             log::info!(
                 "{}",
                 serde_json::to_string(&LogMessage::Start {
                     kern_label: kern_label.as_str(),
                     user_label: user_label.as_str(),
+                    timestamp_ms: start_ts_ms,
                 })
                 .expect("Failed to serialize CUDA event")
             );
@@ -135,12 +154,22 @@ impl EventLogger {
             }
             match end.since(&start) {
                 Ok(duration) => {
+                    // compute end timestamp relative to base
+                    let end_ts_ms = match end.since(&BASE_EVENT) {
+                        Ok(ts) => ts,
+                        Err(err) => {
+                            log::error!("failed to compute end timestamp: {}", err);
+                            start_ts_ms + duration
+                        }
+                    };
+
                     log::info!(
                         "{}",
                         serde_json::to_string(&LogMessage::Complete {
                             kern_label: kern_label.as_str(),
                             user_label: user_label.as_str(),
                             duration_ms: duration,
+                            timestamp_ms: end_ts_ms,
                         })
                         .expect("Failed to serialize CUDA event")
                     );
@@ -168,6 +197,18 @@ static EVENT_LOGGER: Lazy<EventLogger> = Lazy::new(|| EventLogger::new());
 
 impl MonitorAspect for KernelExecTimeAspect {
     fn before_call(&self, launch: &LaunchCUDAKernel) -> Result<(), MonitorError> {
+        // DCL
+        if !BASE_RECORDED.load(std::sync::atomic::Ordering::SeqCst) {
+            let _guard = BASE_INIT_LOCK.lock().unwrap();
+            if !BASE_RECORDED.load(std::sync::atomic::Ordering::SeqCst) {
+                BASE_EVENT
+                    .record(launch.stream())
+                    .map_err(MonitorError::CUDAError)?;
+                BASE_RECORDED.store(true, std::sync::atomic::Ordering::SeqCst);
+            }
+            drop(_guard);
+        }
+
         START_EVENT.with(|se| -> Result<(), MonitorError> {
             let mut mut_se = se.borrow_mut();
             if mut_se.is_some() {
