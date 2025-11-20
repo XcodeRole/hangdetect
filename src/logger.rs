@@ -1,5 +1,6 @@
 use anyhow::Context;
 use log::LevelFilter;
+use std::env;
 use std::str::FromStr;
 use std::sync::Once;
 
@@ -16,7 +17,7 @@ pub fn init_logger() {
                 env_logger::init();
                 return;
             }
-            let local_rank = option_env!("LOCAL_RANK").unwrap_or_else(|| "0");
+            let local_rank = env::var("LOCAL_RANK").unwrap_or_else(|_| "0".to_string());
             let log_file = format!("{}.{}", log_file, local_rank);
 
             let level = option_env!("HANGDETECT_LOG_LEVEL").unwrap_or_else(|| "info");
