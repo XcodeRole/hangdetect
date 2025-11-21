@@ -35,6 +35,22 @@ where
         self.aspect_a.after_call(launch)?;
         self.aspect_b.after_call(launch)
     }
+
+    fn before_nccl_call(
+        &self,
+        comm: &crate::monitor::NCCLCommunication,
+    ) -> Result<(), crate::monitor::error::MonitorError> {
+        self.aspect_a.before_nccl_call(comm)?;
+        self.aspect_b.before_nccl_call(comm)
+    }
+
+    fn after_nccl_call(
+        &self,
+        comm: &crate::monitor::NCCLCommunication,
+    ) -> Result<(), crate::monitor::error::MonitorError> {
+        self.aspect_a.after_nccl_call(comm)?;
+        self.aspect_b.after_nccl_call(comm)
+    }
 }
 
 fn merge_aspect<A, B>(a: A, b: B) -> MergeAspects<A, B>

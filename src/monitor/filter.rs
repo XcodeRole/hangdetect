@@ -54,6 +54,22 @@ where
             Ok(())
         }
     }
+
+    fn before_nccl_call(
+        &self,
+        comm: &crate::monitor::NCCLCommunication,
+    ) -> Result<(), crate::monitor::error::MonitorError> {
+        // NCCL通信不需要过滤，直接调用aspect
+        self.aspect.before_nccl_call(comm)
+    }
+
+    fn after_nccl_call(
+        &self,
+        comm: &crate::monitor::NCCLCommunication,
+    ) -> Result<(), crate::monitor::error::MonitorError> {
+        // NCCL通信不需要过滤，直接调用aspect
+        self.aspect.after_nccl_call(comm)
+    }
 }
 
 pub struct KernelNameFilter {

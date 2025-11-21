@@ -1,6 +1,7 @@
 use super::monitor_aspect::MonitorAspect;
 use crate::cuda_funcs::CUDAEvent;
 use crate::monitor::LaunchCUDAKernel;
+use crate::monitor::NCCLCommunication;
 use crate::monitor::error::MonitorError;
 use crate::monitor::kernel_exec_time_aspect::QueryResult::Completed;
 use anyhow::anyhow;
@@ -243,6 +244,61 @@ impl MonitorAspect for KernelExecTimeAspect {
             .pull(|| CUDAEvent::new().expect("Failed to create CUDAEvent"))
             .detach();
         end.record(launch.stream())
+            .map_err(MonitorError::CUDAError)?;
+
+        let label = LABEL.replace(String::new());
+
+        EVENT_LOGGER.add_event(begin, end, label, USER_LABEL.with(|l| l.borrow().clone()));
+        Ok(())
+    }
+
+    fn before_nccl_call(&self, comm: &NCCLCommunication) -> Result<(), MonitorError> {
+        // DCL
+        if !BASE_RECORDED.load(std::sync::atomic::Ordering::SeqCst) {
+            let _guard = BASE_INIT_LOCK.lock().unwrap();
+            if !BASE_RECORDED.load(std::sync::atomic::Ordering::SeqCst) {
+                BASE_EVENT
+                    .record(comm.stream())
+                    .map_err(MonitorError::CUDAError)?;
+                BASE_RECORDED.store(true, std::sync::atomic::Ordering::SeqCst);
+            }
+            drop(_guard);
+        }
+
+        START_EVENT.with(|se| -> Result<(), MonitorError> {
+            let mut mut_se = se.borrow_mut();
+            if mut_se.is_some() {
+                return Err(MonitorError::Internal(anyhow!(
+                    "START_EVENT is already set"
+                )));
+            }
+
+            let (_, event) = EVENT_POOL
+                .pull(|| CUDAEvent::new().expect("Failed to create CUDAEvent"))
+                .detach();
+
+            event
+                .record(comm.stream())
+                .map_err(MonitorError::CUDAError)?;
+
+            mut_se.replace(event);
+
+            LABEL.with(|label| label.replace(format!("{}", comm)));
+            Ok(())
+        })
+    }
+
+    fn after_nccl_call(&self, comm: &NCCLCommunication) -> Result<(), MonitorError> {
+        let mut ev = START_EVENT.replace(None);
+        if ev.is_none() {
+            return Err(MonitorError::Internal(anyhow!("START_EVENT is not set")));
+        }
+
+        let begin = ev.take().unwrap();
+        let (_, end) = EVENT_POOL
+            .pull(|| CUDAEvent::new().expect("Failed to create CUDAEvent"))
+            .detach();
+        end.record(comm.stream())
             .map_err(MonitorError::CUDAError)?;
 
         let label = LABEL.replace(String::new());

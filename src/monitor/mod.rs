@@ -3,13 +3,16 @@ mod error;
 mod filter;
 mod kernel_exec_time_aspect;
 mod launch_cuda_kernel;
+mod launch_nccl_comm;
 mod logging_aspect;
 mod monitor_aspect;
 mod thread_local_enabler;
 
 use crate::cuda_funcs;
+use crate::nccl_funcs::NCCLError;
 use cuda_funcs::CUDAError;
 pub use launch_cuda_kernel::LaunchCUDAKernel;
+pub use launch_nccl_comm::NCCLCommunication;
 use libc::c_int;
 
 use aspects::ASPECTS;
@@ -35,6 +38,36 @@ where
     };
 
     match ASPECTS.after_call(&launch) {
+        Err(err) => match err {
+            error::MonitorError::CUDAError(cuda_err) => return cuda_err.code,
+            error::MonitorError::Internal(err) => {
+                panic!("monitor after call internal error: {}", err);
+            }
+        },
+        Ok(()) => {}
+    }
+    retv
+}
+
+pub fn monitor_nccl_communication<F>(comm: NCCLCommunication, f: F) -> c_int
+where
+    F: FnOnce() -> Result<(), NCCLError>,
+{
+    match ASPECTS.before_nccl_call(&comm) {
+        Err(err) => match err {
+            error::MonitorError::CUDAError(cuda_err) => return cuda_err.code,
+            error::MonitorError::Internal(err) => {
+                panic!("monitor before call internal error: {}", err);
+            }
+        },
+        Ok(()) => {}
+    }
+    let retv = match f() {
+        Err(err) => err.code,
+        Ok(()) => 0,
+    };
+
+    match ASPECTS.after_nccl_call(&comm) {
         Err(err) => match err {
             error::MonitorError::CUDAError(cuda_err) => return cuda_err.code,
             error::MonitorError::Internal(err) => {
