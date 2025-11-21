@@ -6,11 +6,11 @@ use crate::monitor::error::MonitorError;
 use crate::monitor::kernel_exec_time_aspect::QueryResult::Completed;
 use anyhow::anyhow;
 use object_pool::Pool;
-use once_cell::sync::Lazy;
+use once_cell::sync::{Lazy, OnceCell};
 use serde::Serialize;
 use std::cell::RefCell;
 use std::sync::{Arc, Condvar};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use threadpool::ThreadPool;
 
 struct Notification {
@@ -59,6 +59,7 @@ static BASE_EVENT: Lazy<CUDAEvent> = Lazy::new(|| {
 static BASE_INIT_LOCK: Lazy<std::sync::Mutex<()>> = Lazy::new(|| std::sync::Mutex::new(()));
 static BASE_RECORDED: Lazy<std::sync::atomic::AtomicBool> =
     Lazy::new(|| std::sync::atomic::AtomicBool::new(false));
+static BASE_CPU_TIME: OnceCell<SystemTime> = OnceCell::new();
 
 thread_local! {
     static LABEL: RefCell<String> = RefCell::new(String::new());
@@ -96,9 +97,61 @@ fn query_event_with_notification(event: &CUDAEvent, token: &Notification) -> Que
     }
 }
 
+fn record_base_cpu_timestamp_once_when_base_ready() {
+    if BASE_CPU_TIME.get().is_some() {
+        return;
+    }
+    loop {
+        match BASE_EVENT.query() {
+            Ok(true) => break,
+            Ok(false) => {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            Err(err) => {
+                log::error!(
+                    "failed to query BASE_EVENT when recording base CPU timestamp: {}",
+                    err
+                );
+                return;
+            }
+        }
+    }
+
+    let now = SystemTime::now();
+    if BASE_CPU_TIME.set(now).is_err() {
+        return;
+    }
+
+    match now.duration_since(UNIX_EPOCH) {
+        Ok(dur) => {
+            let cpu_timestamp_us: u64 =
+                dur.as_secs() * 1_000_000 + (dur.subsec_nanos() as u64 / 1_000);
+            let pid = std::process::id();
+            log::info!(
+                "{}",
+                serde_json::to_string(&LogMessage::Base {
+                    pid,
+                    cpu_timestamp_us,
+                })
+                .expect("Failed to serialize base CPU timestamp")
+            );
+        }
+        Err(err) => {
+            log::warn!(
+                "failed to compute base CPU timestamp (SystemTime before UNIX_EPOCH?): {}",
+                err
+            );
+        }
+    }
+}
+
 #[derive(Serialize, Debug)]
 #[serde(tag = "type", content = "data")]
 enum LogMessage<'a> {
+    Base {
+        pid: u32,
+        cpu_timestamp_us: u64,
+    },
     Start {
         kern_label: &'a str,
         user_label: &'a str,
@@ -206,6 +259,9 @@ impl MonitorAspect for KernelExecTimeAspect {
                     .record(launch.stream())
                     .map_err(MonitorError::CUDAError)?;
                 BASE_RECORDED.store(true, std::sync::atomic::Ordering::SeqCst);
+
+                // Wait for BASE_EVENT to really complete, then record a CPU-side absolute timestamp.
+                record_base_cpu_timestamp_once_when_base_ready();
             }
             drop(_guard);
         }
@@ -261,6 +317,9 @@ impl MonitorAspect for KernelExecTimeAspect {
                     .record(comm.stream())
                     .map_err(MonitorError::CUDAError)?;
                 BASE_RECORDED.store(true, std::sync::atomic::Ordering::SeqCst);
+
+                // Wait for BASE_EVENT to really complete, then record a CPU-side absolute timestamp.
+                record_base_cpu_timestamp_once_when_base_ready();
             }
             drop(_guard);
         }
