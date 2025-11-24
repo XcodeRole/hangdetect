@@ -101,20 +101,14 @@ fn record_base_cpu_timestamp_once_when_base_ready() {
     if BASE_CPU_TIME.get().is_some() {
         return;
     }
-    loop {
-        match BASE_EVENT.query() {
-            Ok(true) => break,
-            Ok(false) => {
-                std::thread::sleep(Duration::from_millis(1));
-            }
-            Err(err) => {
-                log::error!(
-                    "failed to query BASE_EVENT when recording base CPU timestamp: {}",
-                    err
-                );
-                return;
-            }
-        }
+
+    // Wait until BASE_EVENT has actually completed on the GPU by synchronizing on it.
+    if let Err(err) = BASE_EVENT.synchronize() {
+        log::error!(
+            "failed to synchronize BASE_EVENT when recording base CPU timestamp: {}",
+            err
+        );
+        return;
     }
 
     let now = SystemTime::now();

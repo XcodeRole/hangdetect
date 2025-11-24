@@ -76,6 +76,8 @@ type CudaEventElapsedTime =
 // cudaError_t cudaEventQuery ( cudaEvent_t event )
 type CudaEventQuery = unsafe extern "C" fn(event: *const c_void) -> std::ffi::c_int;
 
+type CudaEventSynchronize = unsafe extern "C" fn(event: *const c_void) -> std::ffi::c_int;
+
 // CUresult cuLaunchKernel ( CUfunction f, unsigned int  gridDimX, unsigned int  gridDimY,
 //                           unsigned int  gridDimZ, unsigned int  blockDimX,
 //                           unsigned int  blockDimY, unsigned int  blockDimZ,
@@ -154,6 +156,7 @@ static mut CUDA_EVENT_RECORD_FUNC: Option<CudaEventRecord> = None;
 static mut CUDA_EVENT_ELAPSED_TIME_FUNC: Option<CudaEventElapsedTime> = None;
 
 static mut CUDA_EVENT_QUERY_FUNC: Option<CudaEventQuery> = None;
+static mut CUDA_EVENT_SYNCHRONIZE_FUNC: Option<CudaEventSynchronize> = None;
 
 static CU_FUNCS_INIT_ONCE: Once = Once::new();
 static mut CU_LAUNCH_KERNEL_FUNC: Option<CuFuncLaunchKernel> = None;
@@ -229,6 +232,13 @@ fn init_cuda_funcs() {
             panic!("failed to load cudaEventQuery")
         }
         CUDA_EVENT_QUERY_FUNC = Some(std::mem::transmute(fn_ptr));
+
+        let sym = std::ffi::CString::new("cudaEventSynchronize").unwrap();
+        let fn_ptr = libc::dlsym(libc::RTLD_NEXT, sym.as_ptr());
+        if fn_ptr.is_null() {
+            panic!("failed to load cudaEventSynchronize")
+        }
+        CUDA_EVENT_SYNCHRONIZE_FUNC = Some(std::mem::transmute(fn_ptr));
     })
 }
 
@@ -458,6 +468,18 @@ impl CUDAEvent {
                 Ok(false)
             } else {
                 Err(CUDAError { code: cuda_status })
+            }
+        }
+    }
+
+    pub fn synchronize(&self) -> Result<(), CUDAError> {
+        init_cuda_funcs();
+        unsafe {
+            let cuda_status = CUDA_EVENT_SYNCHRONIZE_FUNC.unwrap()(self.event as *const c_void);
+            if cuda_status != 0 {
+                Err(CUDAError { code: cuda_status })
+            } else {
+                Ok(())
             }
         }
     }
