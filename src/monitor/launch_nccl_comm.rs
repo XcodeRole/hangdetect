@@ -119,11 +119,13 @@ fn format_stream_for_nccl(stream: *const c_void) -> String {
 
 impl Display for NCCLCommunication {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let api = self.api_name();
         match self {
             NCCLCommunication::AllReduce { comm, stream, count, datatype, op } => {
                 write!(
                     f,
-                    "<NCCL Kernel: AllReduce(comm={:p}, count={}, datatype={}, op={}) on stream {}>",
+                    "<NCCL Kernel: {}(comm={:p}, count={}, datatype={}, op={}) on stream {}>",
+                    api,
                     comm,
                     count,
                     get_nccl_datatype_name(*datatype),
@@ -134,7 +136,8 @@ impl Display for NCCLCommunication {
             NCCLCommunication::Broadcast { comm, stream, count, datatype, root } => {
                 write!(
                     f,
-                    "<NCCL Kernel: Broadcast(comm={:p}, count={}, datatype={}, root={}) on stream {}>",
+                    "<NCCL Kernel: {}(comm={:p}, count={}, datatype={}, root={}) on stream {}>",
+                    api,
                     comm,
                     count,
                     get_nccl_datatype_name(*datatype),
@@ -145,7 +148,8 @@ impl Display for NCCLCommunication {
             NCCLCommunication::Reduce { comm, stream, count, datatype, op, root } => {
                 write!(
                     f,
-                    "<NCCL Kernel: Reduce(comm={:p}, count={}, datatype={}, op={}, root={}) on stream {}>",
+                    "<NCCL Kernel: {}(comm={:p}, count={}, datatype={}, op={}, root={}) on stream {}>",
+                    api,
                     comm,
                     count,
                     get_nccl_datatype_name(*datatype),
@@ -157,7 +161,8 @@ impl Display for NCCLCommunication {
             NCCLCommunication::AllGather { comm, stream, sendcount, datatype } => {
                 write!(
                     f,
-                    "<NCCL Kernel: AllGather(comm={:p}, sendcount={}, datatype={}) on stream {}>",
+                    "<NCCL Kernel: {}(comm={:p}, sendcount={}, datatype={}) on stream {}>",
+                    api,
                     comm,
                     sendcount,
                     get_nccl_datatype_name(*datatype),
@@ -167,7 +172,8 @@ impl Display for NCCLCommunication {
             NCCLCommunication::ReduceScatter { comm, stream, recvcount, datatype, op } => {
                 write!(
                     f,
-                    "<NCCL Kernel: ReduceScatter(comm={:p}, recvcount={}, datatype={}, op={}) on stream {}>",
+                    "<NCCL Kernel: {}(comm={:p}, recvcount={}, datatype={}, op={}) on stream {}>",
+                    api,
                     comm,
                     recvcount,
                     get_nccl_datatype_name(*datatype),
@@ -176,21 +182,22 @@ impl Display for NCCLCommunication {
                 )
             }
             // NCCLCommunication::AlltoAll { comm, stream, count, datatype } => {
-            //     write!(f, "<NCCL AlltoAll: comm={:p}, stream={:p}, count={}, datatype={}", 
-            //            comm, stream, count, get_nccl_datatype_name(*datatype))
+            //     write!(f, "<NCCL Kernel: {}(comm={:p}, count={}, datatype={}) on stream {}>",
+            //            api, comm, count, get_nccl_datatype_name(*datatype), format_stream_for_nccl(*stream))
             // }
             // NCCLCommunication::Gather { comm, stream, sendcount, datatype, root } => {
-            //     write!(f, "<NCCL Gather: comm={:p}, stream={:p}, sendcount={}, datatype={}, root={}", 
-            //            comm, stream, sendcount, get_nccl_datatype_name(*datatype), root)
+            //     write!(f, "<NCCL Kernel: {}(comm={:p}, sendcount={}, datatype={}, root={}) on stream {}>",
+            //            api, comm, sendcount, get_nccl_datatype_name(*datatype), root, format_stream_for_nccl(*stream))
             // }
             // NCCLCommunication::Scatter { comm, stream, recvcount, datatype, root } => {
-            //     write!(f, "<NCCL Scatter: comm={:p}, stream={:p}, recvcount={}, datatype={}, root={}", 
-            //            comm, stream, recvcount, get_nccl_datatype_name(*datatype), root)
+            //     write!(f, "<NCCL Kernel: {}(comm={:p}, recvcount={}, datatype={}, root={}) on stream {}>",
+            //            api, comm, recvcount, get_nccl_datatype_name(*datatype), root, format_stream_for_nccl(*stream))
             // }
             NCCLCommunication::Send { comm, stream, count, datatype, peer } => {
                 write!(
                     f,
-                    "<NCCL Kernel: Send(comm={:p}, count={}, datatype={}, peer={}) on stream {}>",
+                    "<NCCL Kernel: {}(comm={:p}, count={}, datatype={}, peer={}) on stream {}>",
+                    api,
                     comm,
                     count,
                     get_nccl_datatype_name(*datatype),
@@ -201,7 +208,8 @@ impl Display for NCCLCommunication {
             NCCLCommunication::Recv { comm, stream, count, datatype, peer } => {
                 write!(
                     f,
-                    "<NCCL Kernel: Recv(comm={:p}, count={}, datatype={}, peer={}) on stream {}>",
+                    "<NCCL Kernel: {}(comm={:p}, count={}, datatype={}, peer={}) on stream {}>",
+                    api,
                     comm,
                     count,
                     get_nccl_datatype_name(*datatype),
@@ -226,6 +234,21 @@ impl NCCLCommunication {
             // NCCLCommunication::Scatter { stream, .. } => *stream,
             NCCLCommunication::Send { stream, .. } => *stream,
             NCCLCommunication::Recv { stream, .. } => *stream,
+        }
+    }
+
+    pub fn api_name(&self) -> &'static str {
+        match self {
+            NCCLCommunication::AllReduce { .. } => "ncclAllReduce",
+            NCCLCommunication::Broadcast { .. } => "ncclBroadcast",
+            NCCLCommunication::Reduce { .. } => "ncclReduce",
+            NCCLCommunication::AllGather { .. } => "ncclAllGather",
+            NCCLCommunication::ReduceScatter { .. } => "ncclReduceScatter",
+            // NCCLCommunication::AlltoAll { .. } => "ncclAllToAll",
+            // NCCLCommunication::Gather { .. } => "ncclGather",
+            // NCCLCommunication::Scatter { .. } => "ncclScatter",
+            NCCLCommunication::Send { .. } => "ncclSend",
+            NCCLCommunication::Recv { .. } => "ncclRecv",
         }
     }
 }

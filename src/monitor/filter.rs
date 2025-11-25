@@ -1,11 +1,15 @@
 use super::monitor_aspect::MonitorAspect;
-use crate::monitor::LaunchCUDAKernel;
+use crate::monitor::{LaunchCUDAKernel, NCCLCommunication};
 use regex::Regex;
 use std::env;
 use std::sync::OnceLock;
 
 pub trait Filter: Send + Sync {
     fn filter(&self, launch: &LaunchCUDAKernel) -> bool;
+
+    fn filter_nccl(&self, _comm: &NCCLCommunication) -> bool {
+        true
+    }
 }
 
 pub fn merge_filter<F, A>(f: F, other: A) -> AspectWithBlock<A, F>
@@ -59,16 +63,22 @@ where
         &self,
         comm: &crate::monitor::NCCLCommunication,
     ) -> Result<(), crate::monitor::error::MonitorError> {
-        // NCCL通信不需要过滤，直接调用aspect
-        self.aspect.before_nccl_call(comm)
+        if self.filter.filter_nccl(comm) {
+            self.aspect.before_nccl_call(comm)
+        } else {
+            Ok(())
+        }
     }
 
     fn after_nccl_call(
         &self,
         comm: &crate::monitor::NCCLCommunication,
     ) -> Result<(), crate::monitor::error::MonitorError> {
-        // NCCL通信不需要过滤，直接调用aspect
-        self.aspect.after_nccl_call(comm)
+        if self.filter.filter_nccl(comm) {
+            self.aspect.after_nccl_call(comm)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -126,6 +136,23 @@ impl Filter for KernelNameFilter {
             }
             None => {
                 // No regex specified, allow all kernels
+                true
+            }
+        }
+    }
+
+    fn filter_nccl(&self, comm: &NCCLCommunication) -> bool {
+        match &self.regex {
+            Some(regex) => {
+                let name = comm.api_name();
+                let matches = regex.is_match(name);
+                if !matches {
+                    log::debug!("NCCL '{}' filtered out by regex", name);
+                }
+                matches
+            }
+            None => {
+                // No regex specified, allow all NCCL ops
                 true
             }
         }
