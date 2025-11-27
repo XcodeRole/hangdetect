@@ -1,15 +1,10 @@
-use super::monitor_aspect::MonitorAspect;
-use crate::monitor::{LaunchCUDAKernel, NCCLCommunication};
+use super::monitor_aspect::{MonitorAspect, Operation};
 use regex::Regex;
 use std::env;
 use std::sync::OnceLock;
 
 pub trait Filter: Send + Sync {
-    fn filter(&self, launch: &LaunchCUDAKernel) -> bool;
-
-    fn filter_nccl(&self, _comm: &NCCLCommunication) -> bool {
-        true
-    }
+    fn filter(&self, op: &Operation<'_>) -> bool;
 }
 
 pub fn merge_filter<F, A>(f: F, other: A) -> AspectWithBlock<A, F>
@@ -37,45 +32,17 @@ where
     A: MonitorAspect,
     B: Filter,
 {
-    fn before_call(
-        &self,
-        launch: &LaunchCUDAKernel,
-    ) -> Result<(), crate::monitor::error::MonitorError> {
-        if self.filter.filter(launch) {
-            self.aspect.before_call(launch)
+    fn before_call(&self, op: &Operation<'_>) -> Result<(), crate::monitor::error::MonitorError> {
+        if self.filter.filter(op) {
+            self.aspect.before_call(op)
         } else {
             Ok(())
         }
     }
 
-    fn after_call(
-        &self,
-        launch: &LaunchCUDAKernel,
-    ) -> Result<(), crate::monitor::error::MonitorError> {
-        if self.filter.filter(launch) {
-            self.aspect.after_call(launch)
-        } else {
-            Ok(())
-        }
-    }
-
-    fn before_nccl_call(
-        &self,
-        comm: &crate::monitor::NCCLCommunication,
-    ) -> Result<(), crate::monitor::error::MonitorError> {
-        if self.filter.filter_nccl(comm) {
-            self.aspect.before_nccl_call(comm)
-        } else {
-            Ok(())
-        }
-    }
-
-    fn after_nccl_call(
-        &self,
-        comm: &crate::monitor::NCCLCommunication,
-    ) -> Result<(), crate::monitor::error::MonitorError> {
-        if self.filter.filter_nccl(comm) {
-            self.aspect.after_nccl_call(comm)
+    fn after_call(&self, op: &Operation<'_>) -> Result<(), crate::monitor::error::MonitorError> {
+        if self.filter.filter(op) {
+            self.aspect.after_call(op)
         } else {
             Ok(())
         }
@@ -116,43 +83,36 @@ impl KernelNameFilter {
 }
 
 impl Filter for KernelNameFilter {
-    fn filter(&self, launch: &LaunchCUDAKernel) -> bool {
+    fn filter(&self, op: &Operation<'_>) -> bool {
         match &self.regex {
-            Some(regex) => {
-                match launch.func_name() {
-                    Ok(func_name) => {
-                        let name = func_name.display_name();
-                        let matches = regex.is_match(name);
-                        if !matches {
-                            log::debug!("Kernel '{}' filtered out by regex", name);
+            Some(regex) => match op {
+                Operation::LaunchCUDAKernel(launch) => {
+                    match launch.func_name() {
+                        Ok(func_name) => {
+                            let name = func_name.display_name();
+                            let matches = regex.is_match(name);
+                            if !matches {
+                                log::debug!("Kernel '{}' filtered out by regex", name);
+                            }
+                            matches
                         }
-                        matches
-                    }
-                    Err(_) => {
-                        // If we can't get the kernel name, disallow it by default
-                        false
+                        Err(_) => {
+                            // If we can't get the kernel name, disallow it by default
+                            false
+                        }
                     }
                 }
-            }
-            None => {
-                // No regex specified, allow all kernels
-                true
-            }
-        }
-    }
-
-    fn filter_nccl(&self, comm: &NCCLCommunication) -> bool {
-        match &self.regex {
-            Some(regex) => {
-                let name = comm.api_name();
-                let matches = regex.is_match(name);
-                if !matches {
-                    log::debug!("NCCL '{}' filtered out by regex", name);
+                Operation::NCCLCommunication(comm) => {
+                    let name = comm.api_name();
+                    let matches = regex.is_match(name);
+                    if !matches {
+                        log::debug!("NCCL '{}' filtered out by regex", name);
+                    }
+                    matches
                 }
-                matches
-            }
+            },
             None => {
-                // No regex specified, allow all NCCL ops
+                // No regex specified, allow all operations
                 true
             }
         }

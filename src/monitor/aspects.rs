@@ -1,7 +1,7 @@
 use super::filter::merge_filter;
 use super::filter::KernelNameFilter;
 use super::logging_aspect::LoggingAspect;
-use super::monitor_aspect::MonitorAspect;
+use super::monitor_aspect::{MonitorAspect, Operation};
 use crate::monitor::kernel_exec_time_aspect::KernelExecTimeAspect;
 use crate::monitor::thread_local_enabler::ThreadLocalEnabler;
 use once_cell::sync::Lazy;
@@ -20,36 +20,14 @@ where
     A: MonitorAspect,
     B: MonitorAspect,
 {
-    fn before_call(
-        &self,
-        launch: &crate::monitor::LaunchCUDAKernel,
-    ) -> Result<(), crate::monitor::error::MonitorError> {
-        self.aspect_a.before_call(launch)?;
-        self.aspect_b.before_call(launch)
+    fn before_call(&self, op: &Operation<'_>) -> Result<(), crate::monitor::error::MonitorError> {
+        self.aspect_a.before_call(op)?;
+        self.aspect_b.before_call(op)
     }
 
-    fn after_call(
-        &self,
-        launch: &crate::monitor::LaunchCUDAKernel,
-    ) -> Result<(), crate::monitor::error::MonitorError> {
-        self.aspect_a.after_call(launch)?;
-        self.aspect_b.after_call(launch)
-    }
-
-    fn before_nccl_call(
-        &self,
-        comm: &crate::monitor::NCCLCommunication,
-    ) -> Result<(), crate::monitor::error::MonitorError> {
-        self.aspect_a.before_nccl_call(comm)?;
-        self.aspect_b.before_nccl_call(comm)
-    }
-
-    fn after_nccl_call(
-        &self,
-        comm: &crate::monitor::NCCLCommunication,
-    ) -> Result<(), crate::monitor::error::MonitorError> {
-        self.aspect_a.after_nccl_call(comm)?;
-        self.aspect_b.after_nccl_call(comm)
+    fn after_call(&self, op: &Operation<'_>) -> Result<(), crate::monitor::error::MonitorError> {
+        self.aspect_a.after_call(op)?;
+        self.aspect_b.after_call(op)
     }
 }
 

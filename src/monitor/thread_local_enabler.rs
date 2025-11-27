@@ -1,5 +1,5 @@
 use super::filter::Filter;
-use crate::monitor::{LaunchCUDAKernel, NCCLCommunication};
+use super::monitor_aspect::Operation;
 use std::cell::RefCell;
 thread_local! {
     static HANG_DETECTION_ENABLED: RefCell<Option<bool>> = RefCell::new(None);
@@ -25,11 +25,7 @@ impl ThreadLocalEnabler {
 }
 
 impl Filter for ThreadLocalEnabler {
-    fn filter(&self, _launch: &LaunchCUDAKernel) -> bool {
-        self.is_enabled()
-    }
-
-    fn filter_nccl(&self, _comm: &NCCLCommunication) -> bool {
+    fn filter(&self, _op: &Operation<'_>) -> bool {
         self.is_enabled()
     }
 }

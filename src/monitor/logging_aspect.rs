@@ -1,35 +1,21 @@
-use super::monitor_aspect::MonitorAspect;
+use super::monitor_aspect::{MonitorAspect, Operation};
 
 pub struct LoggingAspect {}
 
 impl MonitorAspect for LoggingAspect {
-    fn before_call(
-        &self,
-        launch: &crate::monitor::LaunchCUDAKernel,
-    ) -> Result<(), crate::monitor::error::MonitorError> {
-        log::info!("Launching CUDA kernel: {}", launch);
+    fn before_call(&self, op: &Operation<'_>) -> Result<(), crate::monitor::error::MonitorError> {
+        match op {
+            Operation::LaunchCUDAKernel(launch) => {
+                log::info!("Launching CUDA kernel: {}", launch);
+            }
+            Operation::NCCLCommunication(comm) => {
+                log::info!("Starting NCCL communication: {}", comm);
+            }
+        }
         Ok(())
     }
 
-    fn after_call(
-        &self,
-        _launch: &crate::monitor::LaunchCUDAKernel,
-    ) -> Result<(), crate::monitor::error::MonitorError> {
-        Ok(())
-    }
-
-    fn before_nccl_call(
-        &self,
-        comm: &crate::monitor::NCCLCommunication,
-    ) -> Result<(), crate::monitor::error::MonitorError> {
-        log::info!("Starting NCCL communication: {}", comm);
-        Ok(())
-    }
-
-    fn after_nccl_call(
-        &self,
-        _comm: &crate::monitor::NCCLCommunication,
-    ) -> Result<(), crate::monitor::error::MonitorError> {
+    fn after_call(&self, _op: &Operation<'_>) -> Result<(), crate::monitor::error::MonitorError> {
         Ok(())
     }
 }
