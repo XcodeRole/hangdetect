@@ -85,30 +85,17 @@ impl KernelNameFilter {
 impl Filter for KernelNameFilter {
     fn filter(&self, op: &Operation<'_>) -> bool {
         match &self.regex {
-            Some(regex) => match op {
-                Operation::LaunchCUDAKernel(launch) => {
-                    match launch.func_name() {
-                        Ok(func_name) => {
-                            let name = func_name.display_name();
-                            let matches = regex.is_match(name);
-                            if !matches {
-                                log::debug!("Kernel '{}' filtered out by regex", name);
-                            }
-                            matches
-                        }
-                        Err(_) => {
-                            // If we can't get the kernel name, disallow it by default
-                            false
-                        }
-                    }
-                }
-                Operation::NCCLCommunication(comm) => {
-                    let name = comm.api_name();
-                    let matches = regex.is_match(name);
+            Some(regex) => match op.name() {
+                Ok(name) => {
+                    let matches = regex.is_match(&name);
                     if !matches {
-                        log::debug!("NCCL '{}' filtered out by regex", name);
+                        log::debug!("Operation '{}' filtered out by regex", name);
                     }
                     matches
+                }
+                Err(_) => {
+                    // If we can't get the operation name, disallow it by default
+                    false
                 }
             },
             None => {

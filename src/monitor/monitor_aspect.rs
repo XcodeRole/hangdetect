@@ -17,6 +17,18 @@ impl<'a> Display for Operation<'a> {
     }
 }
 
+impl <'a> Operation<'a> {
+    pub fn name(&self) -> Result<String, MonitorError> {
+        match self {
+            Operation::LaunchCUDAKernel(launch) => {
+                let func_name: std::sync::Arc<super::launch_cuda_kernel::FuncName> = launch.func_name()?;
+                Ok(func_name.display_name().to_string())
+            }
+            Operation::NCCLCommunication(comm) => Ok(comm.api_name().to_string()),
+        }
+    }
+}
+
 pub trait MonitorAspect: Send + Sync {
     fn before_call(&self, op: &Operation<'_>) -> Result<(), MonitorError>;
 

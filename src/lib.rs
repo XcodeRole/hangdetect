@@ -195,66 +195,66 @@ pub extern "C" fn ncclReduceScatter(
 
 // Note: ncclAlltoAll, ncclGather, ncclScatter 在 NCCL 2.28 版本之后才有，在此之前应该是通过 send / recv 实现的
 
-// #[unsafe(no_mangle)]
-// pub extern "C" fn ncclAlltoAll(
-//     sendbuff: *const c_void,
-//     recvbuff: *mut c_void,
-//     count: c_ulonglong,
-//     datatype: c_uint,
-//     comm: *const c_void,
-//     stream: *const c_void,
-// ) -> c_int {
-//     monitor_nccl_communication(NCCLCommunication::AlltoAll {
-//         comm,
-//         stream,
-//         count,
-//         datatype,
-//     }, || {
-//         nccl_funcs::nccl_alltoall(sendbuff, recvbuff, count, datatype, comm, stream)
-//     })
-// }
+#[unsafe(no_mangle)]
+pub extern "C" fn ncclAlltoAll(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: c_ulonglong,
+    datatype: c_uint,
+    comm: *const c_void,
+    stream: *const c_void,
+) -> c_int {
+    monitor_nccl_communication(NCCLCommunication::AlltoAll {
+        comm,
+        stream,
+        count,
+        datatype,
+    }, || {
+        nccl_funcs::nccl_alltoall(sendbuff, recvbuff, count, datatype, comm, stream)
+    })
+}
 
-// #[unsafe(no_mangle)]
-// pub extern "C" fn ncclGather(
-//     sendbuff: *const c_void,
-//     recvbuff: *mut c_void,
-//     sendcount: c_ulonglong,
-//     datatype: c_uint,
-//     root: c_uint,
-//     comm: *const c_void,
-//     stream: *const c_void,
-// ) -> c_int {
-//     monitor_nccl_communication(NCCLCommunication::Gather {
-//         comm,
-//         stream,
-//         sendcount,
-//         datatype,
-//         root,
-//     }, || {
-//         nccl_funcs::nccl_gather(sendbuff, recvbuff, sendcount, datatype, root, comm, stream)
-//     })
-// }
+#[unsafe(no_mangle)]
+pub extern "C" fn ncclGather(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    sendcount: c_ulonglong,
+    datatype: c_uint,
+    root: c_uint,
+    comm: *const c_void,
+    stream: *const c_void,
+) -> c_int {
+    monitor_nccl_communication(NCCLCommunication::Gather {
+        comm,
+        stream,
+        sendcount,
+        datatype,
+        root,
+    }, || {
+        nccl_funcs::nccl_gather(sendbuff, recvbuff, sendcount, datatype, root, comm, stream)
+    })
+}
 
-// #[unsafe(no_mangle)]
-// pub extern "C" fn ncclScatter(
-//     sendbuff: *const c_void,
-//     recvbuff: *mut c_void,
-//     recvcount: c_ulonglong,
-//     datatype: c_uint,
-//     root: c_uint,
-//     comm: *const c_void,
-//     stream: *const c_void,
-// ) -> c_int {
-//     monitor_nccl_communication(NCCLCommunication::Scatter {
-//         comm,
-//         stream,
-//         recvcount,
-//         datatype,
-//         root,
-//     }, || {
-//         nccl_funcs::nccl_scatter(sendbuff, recvbuff, recvcount, datatype, root, comm, stream)
-//     })
-// }
+#[unsafe(no_mangle)]
+pub extern "C" fn ncclScatter(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    recvcount: c_ulonglong,
+    datatype: c_uint,
+    root: c_uint,
+    comm: *const c_void,
+    stream: *const c_void,
+) -> c_int {
+    monitor_nccl_communication(NCCLCommunication::Scatter {
+        comm,
+        stream,
+        recvcount,
+        datatype,
+        root,
+    }, || {
+        nccl_funcs::nccl_scatter(sendbuff, recvbuff, recvcount, datatype, root, comm, stream)
+    })
+}
 
 // NCCL Point-to-Point Communication API hooks
 #[unsafe(no_mangle)]

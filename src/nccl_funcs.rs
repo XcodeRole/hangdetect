@@ -59,34 +59,34 @@ type NcclReduceScatter = unsafe extern "C" fn(
     stream: *const c_void,
 ) -> c_int;
 
-// type NcclAlltoAll = unsafe extern "C" fn(
-//     sendbuff: *const c_void,
-//     recvbuff: *mut c_void,
-//     count: c_ulonglong,
-//     datatype: c_uint,
-//     comm: *const c_void,
-//     stream: *const c_void,
-// ) -> c_int;
+type NcclAlltoAll = unsafe extern "C" fn(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: c_ulonglong,
+    datatype: c_uint,
+    comm: *const c_void,
+    stream: *const c_void,
+) -> c_int;
 
-// type NcclGather = unsafe extern "C" fn(
-//     sendbuff: *const c_void,
-//     recvbuff: *mut c_void,
-//     sendcount: c_ulonglong,
-//     datatype: c_uint,
-//     root: c_uint,
-//     comm: *const c_void,
-//     stream: *const c_void,
-// ) -> c_int;
+type NcclGather = unsafe extern "C" fn(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    sendcount: c_ulonglong,
+    datatype: c_uint,
+    root: c_uint,
+    comm: *const c_void,
+    stream: *const c_void,
+) -> c_int;
 
-// type NcclScatter = unsafe extern "C" fn(
-//     sendbuff: *const c_void,
-//     recvbuff: *mut c_void,
-//     recvcount: c_ulonglong,
-//     datatype: c_uint,
-//     root: c_uint,
-//     comm: *const c_void,
-//     stream: *const c_void,
-// ) -> c_int;
+type NcclScatter = unsafe extern "C" fn(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    recvcount: c_ulonglong,
+    datatype: c_uint,
+    root: c_uint,
+    comm: *const c_void,
+    stream: *const c_void,
+) -> c_int;
 
 // NCCL Point-to-Point Communication Functions
 type NcclSend = unsafe extern "C" fn(
@@ -113,9 +113,9 @@ static NCCL_BROADCAST_FUNC: OnceCell<NcclBroadcast> = OnceCell::new();
 static NCCL_REDUCE_FUNC: OnceCell<NcclReduce> = OnceCell::new();
 static NCCL_ALL_GATHER_FUNC: OnceCell<NcclAllGather> = OnceCell::new();
 static NCCL_REDUCE_SCATTER_FUNC: OnceCell<NcclReduceScatter> = OnceCell::new();
-// static NCCL_ALL_TO_ALL_FUNC: OnceCell<NcclAlltoAll> = OnceCell::new();
-// static NCCL_GATHER_FUNC: OnceCell<NcclGather> = OnceCell::new();
-// static NCCL_SCATTER_FUNC: OnceCell<NcclScatter> = OnceCell::new();
+static NCCL_ALL_TO_ALL_FUNC: OnceCell<NcclAlltoAll> = OnceCell::new();
+static NCCL_GATHER_FUNC: OnceCell<NcclGather> = OnceCell::new();
+static NCCL_SCATTER_FUNC: OnceCell<NcclScatter> = OnceCell::new();
 static NCCL_SEND_FUNC: OnceCell<NcclSend> = OnceCell::new();
 static NCCL_RECV_FUNC: OnceCell<NcclRecv> = OnceCell::new();
 
@@ -131,9 +131,9 @@ fn init_nccl_funcs() {
         init_nccl_function("ncclReduce", &NCCL_REDUCE_FUNC);
         init_nccl_function("ncclAllGather", &NCCL_ALL_GATHER_FUNC);
         init_nccl_function("ncclReduceScatter", &NCCL_REDUCE_SCATTER_FUNC);
-        // init_nccl_function("ncclAlltoAll", &NCCL_ALL_TO_ALL_FUNC);
-        // init_nccl_function("ncclGather", &NCCL_GATHER_FUNC);
-        // init_nccl_function("ncclScatter", &NCCL_SCATTER_FUNC);
+        init_nccl_function("ncclAlltoAll", &NCCL_ALL_TO_ALL_FUNC);
+        init_nccl_function("ncclGather", &NCCL_GATHER_FUNC);
+        init_nccl_function("ncclScatter", &NCCL_SCATTER_FUNC);
         init_nccl_function("ncclSend", &NCCL_SEND_FUNC);
         init_nccl_function("ncclRecv", &NCCL_RECV_FUNC);
     });
@@ -314,61 +314,61 @@ pub fn nccl_reduce_scatter(
     }
 }
 
-// pub fn nccl_alltoall(
-//     sendbuff: *const c_void,
-//     recvbuff: *mut c_void,
-//     count: c_ulonglong,
-//     datatype: c_uint,
-//     comm: *const c_void,
-//     stream: *const c_void,
-// ) -> Result<(), NCCLError> {
-//     init_nccl_funcs();
-//     let func = NCCL_ALL_TO_ALL_FUNC.get().expect("NCCL_ALL_TO_ALL_FUNC not initialized");
-//     let nccl_status = unsafe { func(sendbuff, recvbuff, count, datatype, comm, stream) };
-//     if nccl_status != 0 {
-//         Err(NCCLError { code: nccl_status })
-//     } else {
-//         Ok(())
-//     }
-// }
+pub fn nccl_alltoall(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: c_ulonglong,
+    datatype: c_uint,
+    comm: *const c_void,
+    stream: *const c_void,
+) -> Result<(), NCCLError> {
+    init_nccl_funcs();
+    let func = NCCL_ALL_TO_ALL_FUNC.get().expect("NCCL_ALL_TO_ALL_FUNC not initialized");
+    let nccl_status = unsafe { func(sendbuff, recvbuff, count, datatype, comm, stream) };
+    if nccl_status != 0 {
+        Err(NCCLError { code: nccl_status })
+    } else {
+        Ok(())
+    }
+}
 
-// pub fn nccl_gather(
-//     sendbuff: *const c_void,
-//     recvbuff: *mut c_void,
-//     sendcount: c_ulonglong,
-//     datatype: c_uint,
-//     root: c_uint,
-//     comm: *const c_void,
-//     stream: *const c_void,
-// ) -> Result<(), NCCLError> {
-//     init_nccl_funcs();
-//     let func = NCCL_GATHER_FUNC.get().expect("NCCL_GATHER_FUNC not initialized");
-//     let nccl_status = unsafe { func(sendbuff, recvbuff, sendcount, datatype, root, comm, stream) };
-//     if nccl_status != 0 {
-//         Err(NCCLError { code: nccl_status })
-//     } else {
-//         Ok(())
-//     }
-// }
+pub fn nccl_gather(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    sendcount: c_ulonglong,
+    datatype: c_uint,
+    root: c_uint,
+    comm: *const c_void,
+    stream: *const c_void,
+) -> Result<(), NCCLError> {
+    init_nccl_funcs();
+    let func = NCCL_GATHER_FUNC.get().expect("NCCL_GATHER_FUNC not initialized");
+    let nccl_status = unsafe { func(sendbuff, recvbuff, sendcount, datatype, root, comm, stream) };
+    if nccl_status != 0 {
+        Err(NCCLError { code: nccl_status })
+    } else {
+        Ok(())
+    }
+}
 
-// pub fn nccl_scatter(
-//     sendbuff: *const c_void,
-//     recvbuff: *mut c_void,
-//     recvcount: c_ulonglong,
-//     datatype: c_uint,
-//     root: c_uint,
-//     comm: *const c_void,
-//     stream: *const c_void,
-// ) -> Result<(), NCCLError> {
-//     init_nccl_funcs();
-//     let func = NCCL_SCATTER_FUNC.get().expect("NCCL_SCATTER_FUNC not initialized");
-//     let nccl_status = unsafe { func(sendbuff, recvbuff, recvcount, datatype, root, comm, stream) };
-//     if nccl_status != 0 {
-//         Err(NCCLError { code: nccl_status })
-//     } else {
-//         Ok(())
-//     }
-// }
+pub fn nccl_scatter(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    recvcount: c_ulonglong,
+    datatype: c_uint,
+    root: c_uint,
+    comm: *const c_void,
+    stream: *const c_void,
+) -> Result<(), NCCLError> {
+    init_nccl_funcs();
+    let func = NCCL_SCATTER_FUNC.get().expect("NCCL_SCATTER_FUNC not initialized");
+    let nccl_status = unsafe { func(sendbuff, recvbuff, recvcount, datatype, root, comm, stream) };
+    if nccl_status != 0 {
+        Err(NCCLError { code: nccl_status })
+    } else {
+        Ok(())
+    }
+}
 
 pub fn nccl_send(
     sendbuff: *const c_void,
