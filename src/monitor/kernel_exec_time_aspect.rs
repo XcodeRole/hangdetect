@@ -241,13 +241,6 @@ impl Drop for EventLogger {
 
 static EVENT_LOGGER: Lazy<EventLogger> = Lazy::new(|| EventLogger::new());
 
-fn op_stream(op: &Operation<'_>) -> *const std::ffi::c_void {
-    match op {
-        Operation::LaunchCUDAKernel(launch) => launch.stream(),
-        Operation::NCCLCommunication(comm) => comm.stream(),
-    }
-}
-
 impl MonitorAspect for KernelExecTimeAspect {
     fn before_call(&self, op: &Operation<'_>) -> Result<(), MonitorError> {
         // DCL
@@ -255,7 +248,7 @@ impl MonitorAspect for KernelExecTimeAspect {
             let _guard = BASE_INIT_LOCK.lock().unwrap();
             if !BASE_RECORDED.load(std::sync::atomic::Ordering::SeqCst) {
                 BASE_EVENT
-                    .record(op_stream(op))
+                    .record(op.stream())
                     .map_err(MonitorError::CUDAError)?;
                 BASE_RECORDED.store(true, std::sync::atomic::Ordering::SeqCst);
 
@@ -278,7 +271,7 @@ impl MonitorAspect for KernelExecTimeAspect {
                 .detach();
 
             event
-                .record(op_stream(op))
+                .record(op.stream())
                 .map_err(MonitorError::CUDAError)?;
 
             mut_se.replace(event);
@@ -298,7 +291,7 @@ impl MonitorAspect for KernelExecTimeAspect {
         let (_, end) = EVENT_POOL
             .pull(|| CUDAEvent::new().expect("Failed to create CUDAEvent"))
             .detach();
-        end.record(op_stream(op))
+        end.record(op.stream())
             .map_err(MonitorError::CUDAError)?;
 
         let label = LABEL.replace(String::new());

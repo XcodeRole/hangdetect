@@ -21,10 +21,17 @@ impl <'a> Operation<'a> {
     pub fn name(&self) -> Result<String, MonitorError> {
         match self {
             Operation::LaunchCUDAKernel(launch) => {
-                let func_name: std::sync::Arc<super::launch_cuda_kernel::FuncName> = launch.func_name()?;
+                let func_name = launch.func_name()?;
                 Ok(func_name.display_name().to_string())
             }
             Operation::NCCLCommunication(comm) => Ok(comm.api_name().to_string()),
+        }
+    }
+
+    pub fn stream(&self) -> *const std::ffi::c_void {
+        match self {
+            Operation::LaunchCUDAKernel(launch) => launch.stream(),
+            Operation::NCCLCommunication(comm) => comm.stream(),
         }
     }
 }
