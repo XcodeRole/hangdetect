@@ -157,6 +157,7 @@ dependencies = [
  "log",
  "object-pool",
  "once_cell",
+ "regex",
  "serde",
  "serde_json",
  "simple-logging",

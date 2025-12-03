@@ -9,7 +9,6 @@ pub struct ThreadLocalEnabler {}
 
 impl Filter for ThreadLocalEnabler {
     fn filter(&self, _launch: &LaunchCUDAKernel) -> bool {
-        _ = std::env::vars();
         HANG_DETECTION_ENABLED.with(|h| {
             let mut flag = h.borrow_mut();
 
@@ -23,10 +22,4 @@ impl Filter for ThreadLocalEnabler {
             enabled
         })
     }
-}
-pub fn set_hang_detection_enabled(enabled: bool) {
-    HANG_DETECTION_ENABLED.with(|h| {
-        let mut flag = h.borrow_mut();
-        flag.replace(enabled);
-    });
 }

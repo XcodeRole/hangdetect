@@ -1,8 +1,6 @@
-use crate::init::init;
 use libc::{c_int, c_uint, c_ulonglong, uintptr_t};
 use std::ffi::c_void;
 use std::ptr::null;
-use std::sync::Once;
 
 #[repr(C)]
 pub struct Dim3 {
@@ -129,7 +127,8 @@ pub struct CuLaunchConfig {
 type CuFuncLaunchKernelEx = unsafe extern "C" fn(
     config: *const CuLaunchConfig,
     func: *const c_void,
-    args: *mut *const c_void,
+    kernel_params: *mut *const c_void,
+    extra: *mut *const c_void,
 ) -> std::ffi::c_int;
 
 // CUresult cuFuncGetName ( const char** name, CUfunction hfunc )
@@ -138,7 +137,6 @@ type CuFuncGetName = unsafe extern "C" fn(
     func: *const c_void,
 ) -> std::ffi::c_int;
 
-static CUDA_FUNCS_INIT_ONCE: Once = Once::new();
 static mut CUDA_GET_NAME_FUNC: Option<CudaFuncGetNameFunc> = None;
 static mut CUDA_LAUNCH_KERNEL_FUNC: Option<CudaFuncLaunchKernel> = None;
 
@@ -155,109 +153,75 @@ static mut CUDA_EVENT_ELAPSED_TIME_FUNC: Option<CudaEventElapsedTime> = None;
 
 static mut CUDA_EVENT_QUERY_FUNC: Option<CudaEventQuery> = None;
 
-static CU_FUNCS_INIT_ONCE: Once = Once::new();
 static mut CU_LAUNCH_KERNEL_FUNC: Option<CuFuncLaunchKernel> = None;
 
 static mut CU_LAUNCH_KERNEL_EXC_FUNC: Option<CuFuncLaunchKernelEx> = None;
 
 static mut CU_GET_NAME_FUNC: Option<CuFuncGetName> = None;
 
-fn init_cuda_funcs() {
-    CUDA_FUNCS_INIT_ONCE.call_once(|| unsafe {
-        init();
-
-        let sym = std::ffi::CString::new("cudaFuncGetName").unwrap();
-
-        let fn_ptr = libc::dlsym(libc::RTLD_NEXT, sym.as_ptr());
-        if fn_ptr.is_null() {
-            panic!("failed to load cudaFuncGetName")
-        }
-        CUDA_GET_NAME_FUNC = Some(std::mem::transmute(fn_ptr));
-
-        let sym = std::ffi::CString::new("cudaLaunchKernel").unwrap();
-        let fn_ptr = libc::dlsym(libc::RTLD_NEXT, sym.as_ptr());
-        if fn_ptr.is_null() {
-            panic!("failed to load cudaLaunchKernel")
-        }
-        CUDA_LAUNCH_KERNEL_FUNC = Some(std::mem::transmute(fn_ptr));
-
-        let sym = std::ffi::CString::new("cudaLaunchKernelExC").unwrap();
-        let fn_ptr = libc::dlsym(libc::RTLD_NEXT, sym.as_ptr());
-        if fn_ptr.is_null() {
-            panic!("failed to load cudaLaunchKernelExC")
-        }
-        CUDA_LAUNCH_KERNEL_EXC_FUNC = Some(std::mem::transmute(fn_ptr));
-
-        let sym = std::ffi::CString::new("cudaStreamGetId").unwrap();
-        let fn_ptr = libc::dlsym(libc::RTLD_NEXT, sym.as_ptr());
-        if fn_ptr.is_null() {
-            panic!("failed to load cudaStreamGetId")
-        }
-        CUDA_STREAM_GET_ID_FUNC = Some(std::mem::transmute(fn_ptr));
-
-        let sym = std::ffi::CString::new("cudaEventCreateWithFlags").unwrap();
-        let fn_ptr = libc::dlsym(libc::RTLD_NEXT, sym.as_ptr());
-        if fn_ptr.is_null() {
-            panic!("failed to load cudaEventCreateWithFlags")
-        }
-        CUDA_EVENT_CREATE_WITH_FLAGS_FUNC = Some(std::mem::transmute(fn_ptr));
-
-        let sym = std::ffi::CString::new("cudaEventDestroy").unwrap();
-        let fn_ptr = libc::dlsym(libc::RTLD_NEXT, sym.as_ptr());
-        if fn_ptr.is_null() {
-            panic!("failed to load cudaEventDestroy")
-        }
-        CUDA_EVENT_DESTROY_FUNC = Some(std::mem::transmute(fn_ptr));
-
-        let sym = std::ffi::CString::new("cudaEventRecord").unwrap();
-        let fn_ptr = libc::dlsym(libc::RTLD_NEXT, sym.as_ptr());
-        if fn_ptr.is_null() {
-            panic!("failed to load cudaEventRecord")
-        }
-        CUDA_EVENT_RECORD_FUNC = Some(std::mem::transmute(fn_ptr));
-
-        let sym = std::ffi::CString::new("cudaEventElapsedTime").unwrap();
-        let fn_ptr = libc::dlsym(libc::RTLD_NEXT, sym.as_ptr());
-        if fn_ptr.is_null() {
-            panic!("failed to load cudaEventElapsedTime")
-        }
-        CUDA_EVENT_ELAPSED_TIME_FUNC = Some(std::mem::transmute(fn_ptr));
-
-        let sym = std::ffi::CString::new("cudaEventQuery").unwrap();
-        let fn_ptr = libc::dlsym(libc::RTLD_NEXT, sym.as_ptr());
-        if fn_ptr.is_null() {
-            panic!("failed to load cudaEventQuery")
-        }
-        CUDA_EVENT_QUERY_FUNC = Some(std::mem::transmute(fn_ptr));
-    })
+pub unsafe fn set_cuda_get_name_func_addr(addr: usize) {
+    let fn_ptr = addr as *mut c_void;
+    CUDA_GET_NAME_FUNC = Some(std::mem::transmute(fn_ptr));
 }
 
-fn init_cu_funcs() {
-    CU_FUNCS_INIT_ONCE.call_once(|| unsafe {
-        init();
-
-        let sym = std::ffi::CString::new("cuLaunchKernel").unwrap();
-        let fn_ptr = libc::dlsym(libc::RTLD_NEXT, sym.as_ptr());
-        if fn_ptr.is_null() {
-            panic!("failed to load cuLaunchKernel")
-        }
-        CU_LAUNCH_KERNEL_FUNC = Some(std::mem::transmute(fn_ptr));
-
-        let sym = std::ffi::CString::new("cuLaunchKernelEx").unwrap();
-        let fn_ptr = libc::dlsym(libc::RTLD_NEXT, sym.as_ptr());
-        if fn_ptr.is_null() {
-            panic!("failed to load cuLaunchKernelEx")
-        }
-        CU_LAUNCH_KERNEL_EXC_FUNC = Some(std::mem::transmute(fn_ptr));
-
-        let sym = std::ffi::CString::new("cuFuncGetName").unwrap();
-        let fn_ptr = libc::dlsym(libc::RTLD_NEXT, sym.as_ptr());
-        if fn_ptr.is_null() {
-            panic!("failed to load cuFuncGetName")
-        }
-        CU_GET_NAME_FUNC = Some(std::mem::transmute(fn_ptr));
-    })
+pub unsafe fn set_cuda_launch_kernel_addr(addr: usize) {
+    let fn_ptr = addr as *mut c_void;
+    CUDA_LAUNCH_KERNEL_FUNC = Some(std::mem::transmute(fn_ptr));
 }
+
+pub unsafe fn set_cuda_launch_kernel_ex_c_addr(addr: usize) {
+    let fn_ptr = addr as *mut c_void;
+    CUDA_LAUNCH_KERNEL_EXC_FUNC = Some(std::mem::transmute(fn_ptr));
+}
+
+pub unsafe fn set_cuda_stream_get_id_addr(addr: usize) {
+    let fn_ptr = addr as *mut c_void;
+    CUDA_STREAM_GET_ID_FUNC = Some(std::mem::transmute(fn_ptr));
+}
+
+pub unsafe fn set_cuda_event_create_with_flags_addr(addr: usize) {
+    let fn_ptr = addr as *mut c_void;
+    CUDA_EVENT_CREATE_WITH_FLAGS_FUNC = Some(std::mem::transmute(fn_ptr));
+}
+
+pub unsafe fn set_cuda_event_destroy_addr(addr: usize) {
+    let fn_ptr = addr as *mut c_void;
+    CUDA_EVENT_DESTROY_FUNC = Some(std::mem::transmute(fn_ptr));
+}
+
+pub unsafe fn set_cuda_event_record_addr(addr: usize) {
+    let fn_ptr = addr as *mut c_void;
+    CUDA_EVENT_RECORD_FUNC = Some(std::mem::transmute(fn_ptr));
+}
+
+pub unsafe fn set_cuda_event_elapsed_time_addr(addr: usize) {
+    let fn_ptr = addr as *mut c_void;
+    CUDA_EVENT_ELAPSED_TIME_FUNC = Some(std::mem::transmute(fn_ptr));
+}
+
+pub unsafe fn set_cuda_event_query_addr(addr: usize) {
+    let fn_ptr = addr as *mut c_void;
+    CUDA_EVENT_QUERY_FUNC = Some(std::mem::transmute(fn_ptr));
+}
+
+pub unsafe fn set_cu_launch_kernel_addr(addr: usize) {
+    let fn_ptr = addr as *mut c_void;
+    CU_LAUNCH_KERNEL_FUNC = Some(std::mem::transmute(fn_ptr));
+}
+
+pub unsafe fn set_cu_launch_kernel_ex_addr(addr: usize) {
+    let fn_ptr = addr as *mut c_void;
+    CU_LAUNCH_KERNEL_EXC_FUNC = Some(std::mem::transmute(fn_ptr));
+}
+
+pub unsafe fn set_cu_get_name_func_addr(addr: usize) {
+    let fn_ptr = addr as *mut c_void;
+    CU_GET_NAME_FUNC = Some(std::mem::transmute(fn_ptr));
+}
+
+// init_cuda_funcs and init_cu_funcs are intentionally removed.
+// All public APIs below now rely on their corresponding function
+// pointers being initialized by la_symbind64 via the setter functions.
 
 #[derive(Debug)]
 pub struct CUDAError {
@@ -270,10 +234,15 @@ impl std::fmt::Display for CUDAError {
 }
 
 pub fn get_cuda_func_name(func: *const c_void) -> Result<String, CUDAError> {
-    init_cuda_funcs();
     unsafe {
+        let func_ptr = match CUDA_GET_NAME_FUNC {
+            Some(f) => f,
+            None => {
+                return Err(CUDAError { code: -1 });
+            }
+        };
         let mut name_ptr: *const std::ffi::c_char = null();
-        let cuda_status = CUDA_GET_NAME_FUNC.unwrap()(&mut name_ptr, func);
+        let cuda_status = func_ptr(&mut name_ptr, func);
         if cuda_status != 0 {
             Err(CUDAError { code: cuda_status })
         } else {
@@ -291,10 +260,14 @@ pub fn launch_cuda_kernel(
     shared_mem: usize,
     stream: *mut c_void,
 ) -> Result<(), CUDAError> {
-    init_cuda_funcs();
     unsafe {
-        let cuda_status =
-            CUDA_LAUNCH_KERNEL_FUNC.unwrap()(func, grid_dim, block_dim, args, shared_mem, stream);
+        let func_ptr = match CUDA_LAUNCH_KERNEL_FUNC {
+            Some(f) => f,
+            None => {
+                return Err(CUDAError { code: -1 });
+            }
+        };
+        let cuda_status = func_ptr(func, grid_dim, block_dim, args, shared_mem, stream);
         if cuda_status != 0 {
             Err(CUDAError { code: cuda_status })
         } else {
@@ -308,9 +281,14 @@ pub fn launch_cuda_kernel_ex_c(
     func: *const c_void,
     args: *mut *const c_void,
 ) -> Result<(), CUDAError> {
-    init_cuda_funcs();
     unsafe {
-        let cuda_status = CUDA_LAUNCH_KERNEL_EXC_FUNC.unwrap()(config, func, args);
+        let func_ptr = match CUDA_LAUNCH_KERNEL_EXC_FUNC {
+            Some(f) => f,
+            None => {
+                return Err(CUDAError { code: -1 });
+            }
+        };
+        let cuda_status = func_ptr(config, func, args);
         if cuda_status != 0 {
             Err(CUDAError { code: cuda_status })
         } else {
@@ -332,9 +310,14 @@ pub fn launch_cu_kernel(
     kernel_params: *mut *const c_void,
     extra: *mut *const c_void,
 ) -> Result<(), CUDAError> {
-    init_cu_funcs();
     unsafe {
-        let cu_status = CU_LAUNCH_KERNEL_FUNC.unwrap()(
+        let func_ptr = match CU_LAUNCH_KERNEL_FUNC {
+            Some(f) => f,
+            None => {
+                return Err(CUDAError { code: -1 });
+            }
+        };
+        let cu_status = func_ptr(
             func,
             grid_dim_x,
             grid_dim_y,
@@ -358,11 +341,17 @@ pub fn launch_cu_kernel(
 pub fn launch_cu_kernel_ex(
     config: *const CuLaunchConfig,
     func: *const c_void,
-    args: *mut *const c_void,
+    kernel_params: *mut *const c_void,
+    extra: *mut *const c_void,
 ) -> Result<(), CUDAError> {
-    init_cu_funcs();
     unsafe {
-        let cu_status = CU_LAUNCH_KERNEL_EXC_FUNC.unwrap()(config, func, args);
+        let func_ptr = match CU_LAUNCH_KERNEL_EXC_FUNC {
+            Some(f) => f,
+            None => {
+                return Err(CUDAError { code: -1 });
+            }
+        };
+        let cu_status = func_ptr(config, func, kernel_params, extra);
         if cu_status != 0 {
             Err(CUDAError { code: cu_status })
         } else {
@@ -372,12 +361,22 @@ pub fn launch_cu_kernel_ex(
 }
 
 pub fn cu_func_get_name(func: *const c_void) -> Result<String, CUDAError> {
-    init_cu_funcs();
     unsafe {
+        let func_ptr = match CU_GET_NAME_FUNC {
+            Some(f) => f,
+            None => {
+                return Err(CUDAError { code: -1 });
+            }
+        };
         let mut name_ptr: *const std::ffi::c_char = null();
-        let cu_status = CU_GET_NAME_FUNC.unwrap()(&mut name_ptr, func);
+        let cu_status = func_ptr(&mut name_ptr, func);
         if cu_status != 0 {
-            Err(CUDAError { code: cu_status })
+            log::warn!(
+                "[hangdetect][cuda_funcs] cuFuncGetName failed for func={:p} with code={}",
+                func,
+                cu_status
+            );
+            Ok(format!("unknown_cu_func(0x{:p})", func))
         } else {
             let cstr = std::ffi::CStr::from_ptr(name_ptr);
             Ok(cstr.to_str().unwrap().to_string())
@@ -386,10 +385,15 @@ pub fn cu_func_get_name(func: *const c_void) -> Result<String, CUDAError> {
 }
 
 pub fn cuda_stream_get_id(stream: *const c_void) -> Result<u64, CUDAError> {
-    init_cuda_funcs();
     unsafe {
+        let func_ptr = match CUDA_STREAM_GET_ID_FUNC {
+            Some(f) => f,
+            None => {
+                return Err(CUDAError { code: -1 });
+            }
+        };
         let mut stream_id: c_ulonglong = 0;
-        let cuda_status = CUDA_STREAM_GET_ID_FUNC.unwrap()(stream, &mut stream_id);
+        let cuda_status = func_ptr(stream, &mut stream_id);
         if cuda_status != 0 {
             Err(CUDAError { code: cuda_status })
         } else {
@@ -404,10 +408,15 @@ pub struct CUDAEvent {
 
 impl CUDAEvent {
     pub fn new() -> Result<CUDAEvent, CUDAError> {
-        init_cuda_funcs();
         unsafe {
+            let func_ptr = match CUDA_EVENT_CREATE_WITH_FLAGS_FUNC {
+                Some(f) => f,
+                None => {
+                    return Err(CUDAError { code: -1 });
+                }
+            };
             let mut event: *const c_void = null();
-            let cuda_status = CUDA_EVENT_CREATE_WITH_FLAGS_FUNC.unwrap()(&mut event, 0);
+            let cuda_status = func_ptr(&mut event, 0);
             if cuda_status != 0 {
                 Err(CUDAError { code: cuda_status })
             } else {
@@ -419,9 +428,14 @@ impl CUDAEvent {
     }
 
     pub fn record(&self, stream: *const c_void) -> Result<(), CUDAError> {
-        init_cuda_funcs();
         unsafe {
-            let cuda_status = CUDA_EVENT_RECORD_FUNC.unwrap()(self.event as *const c_void, stream);
+            let func_ptr = match CUDA_EVENT_RECORD_FUNC {
+                Some(f) => f,
+                None => {
+                    return Err(CUDAError { code: -1 });
+                }
+            };
+            let cuda_status = func_ptr(self.event as *const c_void, stream);
             if cuda_status != 0 {
                 Err(CUDAError { code: cuda_status })
             } else {
@@ -431,10 +445,15 @@ impl CUDAEvent {
     }
 
     pub fn since(&self, begin: &CUDAEvent) -> Result<f32, CUDAError> {
-        init_cuda_funcs();
         unsafe {
+            let func_ptr = match CUDA_EVENT_ELAPSED_TIME_FUNC {
+                Some(f) => f,
+                None => {
+                    return Err(CUDAError { code: -1 });
+                }
+            };
             let mut ms: f32 = 0.0;
-            let cuda_status = CUDA_EVENT_ELAPSED_TIME_FUNC.unwrap()(
+            let cuda_status = func_ptr(
                 &mut ms,
                 begin.event as *const c_void,
                 self.event as *const c_void,
@@ -448,13 +467,17 @@ impl CUDAEvent {
     }
 
     pub fn query(&self) -> Result<bool, CUDAError> {
-        init_cuda_funcs();
         unsafe {
-            let cuda_status = CUDA_EVENT_QUERY_FUNC.unwrap()(self.event as *const c_void);
+            let func_ptr = match CUDA_EVENT_QUERY_FUNC {
+                Some(f) => f,
+                None => {
+                    return Err(CUDAError { code: -1 });
+                }
+            };
+            let cuda_status = func_ptr(self.event as *const c_void);
             if cuda_status == 0 {
                 Ok(true)
             } else if cuda_status == 600 {
-                // cudaErrorNotReady
                 Ok(false)
             } else {
                 Err(CUDAError { code: cuda_status })
@@ -465,11 +488,16 @@ impl CUDAEvent {
 
 impl Drop for CUDAEvent {
     fn drop(&mut self) {
-        init_cuda_funcs();
         unsafe {
-            let cuda_status = CUDA_EVENT_DESTROY_FUNC.unwrap()(self.event as *const c_void);
-            if cuda_status != 0 {
-                eprintln!("failed to destroy CUDA event: {}", cuda_status);
+            if let Some(func_ptr) = CUDA_EVENT_DESTROY_FUNC {
+                let cuda_status = func_ptr(self.event as *const c_void);
+                if cuda_status != 0 {
+                    eprintln!("failed to destroy CUDA event: {}", cuda_status);
+                }
+            } else {
+                eprintln!(
+                    "[hangdetect][cuda_funcs] CUDA_EVENT_DESTROY_FUNC is not initialized; skip destroying CUDA event",
+                );
             }
         }
     }

@@ -1,15 +1,8 @@
-use crate::cuda_funcs::{CuLaunchConfig, CudaLaunchConfig};
-use libc::{c_char, c_uint};
-use monitor::{LaunchCUDAKernel, monitor_launch_cuda_kernel};
+use crate::cuda_funcs;
+use libc::c_uint;
+use crate::monitor::{LaunchCUDAKernel, monitor_launch_cuda_kernel};
 use std::ffi::{c_int, c_void};
 
-mod cuda_funcs;
-mod init;
-mod logger;
-
-mod monitor;
-
-#[unsafe(no_mangle)]
 pub extern "C" fn cudaLaunchKernel(
     func: *const c_void,
     grid_dim: cuda_funcs::Dim3,
@@ -23,9 +16,8 @@ pub extern "C" fn cudaLaunchKernel(
     })
 }
 
-#[unsafe(no_mangle)]
 pub extern "C" fn cudaLaunchKernelExC(
-    config: &CudaLaunchConfig,
+    config: &cuda_funcs::CudaLaunchConfig,
     func: *const c_void,
     args: *mut *const c_void,
 ) -> c_int {
@@ -38,7 +30,6 @@ pub extern "C" fn cudaLaunchKernelExC(
     )
 }
 
-#[unsafe(no_mangle)]
 pub extern "C" fn cuLaunchKernel(
     func: *const c_void,
     grid_dim_x: c_uint,
@@ -69,37 +60,17 @@ pub extern "C" fn cuLaunchKernel(
     })
 }
 
-#[unsafe(no_mangle)]
 pub extern "C" fn cuLaunchKernelEx(
-    config: &CuLaunchConfig,
+    config: &cuda_funcs::CuLaunchConfig,
     func: *const c_void,
-    args: *mut *const c_void,
+    kernel_params: *mut *const c_void,
+    extra: *mut *const c_void,
 ) -> c_int {
     monitor_launch_cuda_kernel(
         LaunchCUDAKernel::Driver {
             func,
             stream: config.stream,
         },
-        || cuda_funcs::launch_cu_kernel_ex(config, func, args),
+        || cuda_funcs::launch_cu_kernel_ex(config, func, kernel_params, extra),
     )
-}
-
-// Settings APIs
-#[unsafe(no_mangle)]
-pub extern "C" fn hangdetect_set_enable(enabled: bool) {
-    monitor::set_hang_detection_enabled(enabled);
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn hangdetect_set_kernel_exec_label(label: *const c_char) {
-    if label.is_null() {
-        monitor::set_kernel_exec_time_user_label("");
-    } else {
-        let c_str = unsafe { std::ffi::CStr::from_ptr(label) };
-        if let Ok(str_slice) = c_str.to_str() {
-            monitor::set_kernel_exec_time_user_label(str_slice);
-        } else {
-            log::warn!("hangdetect_set_kernel_exec_label: invalid UTF-8 string");
-        }
-    }
 }

@@ -1,5 +1,5 @@
 use super::filter::merge_filter;
-use super::filter::KernelNameFilter;
+use super::kernel_name_filter::KernelNameFilter;
 use super::logging_aspect::LoggingAspect;
 use super::monitor_aspect::MonitorAspect;
 use crate::monitor::kernel_exec_time_aspect::KernelExecTimeAspect;
