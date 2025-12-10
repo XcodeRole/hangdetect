@@ -59,60 +59,24 @@ fn init_runtime_from_map(def_map: *mut link_map) {
         let resolve = |sym: &str| -> Option<usize> {
             find_symbol_in_link_map(def_map, sym)
         };
-
-        if let Some(addr) = resolve("cudaFuncGetName") {
-            RUNTIME_API.get_name = Some(std::mem::transmute(addr));
-        } else {
-            panic!("[hangdetect][audit][rt-init] failed to resolve cudaFuncGetName");
+        macro_rules! init_runtime_api {
+            ($func_name:expr, $table_field:ident) => {
+                if let Some(addr) = resolve($func_name) {
+                    RUNTIME_API.$table_field = Some(std::mem::transmute(addr));
+                } else {
+                    panic!("[hangdetect][audit][rt-init] failed to resolve {}", $func_name);
+                }
+            };
         }
-
-        if let Some(addr) = resolve("cudaLaunchKernel") {
-            RUNTIME_API.launch_kernel = Some(std::mem::transmute(addr));
-        } else {
-            panic!("[hangdetect][audit][rt-init] failed to resolve cudaLaunchKernel");
-        }
-
-        if let Some(addr) = resolve("cudaLaunchKernelExC") {
-            RUNTIME_API.launch_kernel_ex_c = Some(std::mem::transmute(addr));
-        } else {
-            panic!("[hangdetect][audit][rt-init] failed to resolve cudaLaunchKernelExC");
-        }
-
-        if let Some(addr) = resolve("cudaStreamGetId") {
-            RUNTIME_API.stream_get_id = Some(std::mem::transmute(addr));
-        } else {
-            panic!("[hangdetect][audit][rt-init] failed to resolve cudaStreamGetId");
-        }
-
-        if let Some(addr) = resolve("cudaEventCreateWithFlags") {
-            RUNTIME_API.event_create_with_flags = Some(std::mem::transmute(addr));
-        } else {
-            panic!("[hangdetect][audit][rt-init] failed to resolve cudaEventCreateWithFlags");
-        }
-
-        if let Some(addr) = resolve("cudaEventDestroy") {
-            RUNTIME_API.event_destroy = Some(std::mem::transmute(addr));
-        } else {
-            panic!("[hangdetect][audit][rt-init] failed to resolve cudaEventDestroy");
-        }
-
-        if let Some(addr) = resolve("cudaEventRecord") {
-            RUNTIME_API.event_record = Some(std::mem::transmute(addr));
-        } else {
-            panic!("[hangdetect][audit][rt-init] failed to resolve cudaEventRecord");
-        }
-
-        if let Some(addr) = resolve("cudaEventElapsedTime") {
-            RUNTIME_API.event_elapsed_time = Some(std::mem::transmute(addr));
-        } else {
-            panic!("[hangdetect][audit][rt-init] failed to resolve cudaEventElapsedTime");
-        }
-
-        if let Some(addr) = resolve("cudaEventQuery") {
-            RUNTIME_API.event_query = Some(std::mem::transmute(addr));
-        } else {
-            panic!("[hangdetect][audit][rt-init] failed to resolve cudaEventQuery");
-        }
+        init_runtime_api!("cudaFuncGetName", get_name);
+        init_runtime_api!("cudaLaunchKernel", launch_kernel);
+        init_runtime_api!("cudaLaunchKernelExC", launch_kernel_ex_c);
+        init_runtime_api!("cudaStreamGetId", stream_get_id);
+        init_runtime_api!("cudaEventCreateWithFlags", event_create_with_flags);
+        init_runtime_api!("cudaEventDestroy", event_destroy);
+        init_runtime_api!("cudaEventRecord", event_record);
+        init_runtime_api!("cudaEventElapsedTime", event_elapsed_time);
+        init_runtime_api!("cudaEventQuery", event_query);
     });
 }
 
@@ -121,24 +85,18 @@ fn init_driver_from_map(def_map: *mut link_map) {
         let resolve = |sym: &str| -> Option<usize> {
             find_symbol_in_link_map(def_map, sym)
         };
-
-        if let Some(addr) = resolve("cuLaunchKernel") {
-            DRIVER_API.launch_kernel = Some(std::mem::transmute(addr));
-        } else {
-            panic!("[hangdetect][audit][drv-init] failed to resolve cuLaunchKernel");
+        macro_rules! init_driver_api {
+            ($func_name:expr, $table_field:ident) => {
+                if let Some(addr) = resolve($func_name) {
+                    DRIVER_API.$table_field = Some(std::mem::transmute(addr));
+                } else {
+                    panic!("[hangdetect][audit][drv-init] failed to resolve {}", $func_name);
+                }
+            };
         }
-
-        if let Some(addr) = resolve("cuLaunchKernelEx") {
-            DRIVER_API.launch_kernel_ex = Some(std::mem::transmute(addr));
-        } else {
-            panic!("[hangdetect][audit][drv-init] failed to resolve cuLaunchKernelEx");
-        }
-
-        if let Some(addr) = resolve("cuFuncGetName") {
-            DRIVER_API.get_name = Some(std::mem::transmute(addr));
-        } else {
-            panic!("[hangdetect][audit][drv-init] failed to resolve cuFuncGetName");
-        }
+        init_driver_api!("cuLaunchKernel", launch_kernel);
+        init_driver_api!("cuLaunchKernelEx", launch_kernel_ex);
+        init_driver_api!("cuFuncGetName", get_name);
     });
 }
 
@@ -200,7 +158,7 @@ pub extern "C" fn la_symbind64(
             std::ptr::null_mut()
         };
 
-        macro_rules! cuda_launch_wrapper {
+        macro_rules! intercept_cuda_launch {
             ($func_name:ident) => {
                 if name == stringify!($func_name) {
                     if !def_map.is_null() {
@@ -212,8 +170,8 @@ pub extern "C" fn la_symbind64(
             };
         }
         // 1. Intercept Runtime API
-        cuda_launch_wrapper!(cudaLaunchKernel);
-        cuda_launch_wrapper!(cudaLaunchKernelExC);
+        intercept_cuda_launch!(cudaLaunchKernel);
+        intercept_cuda_launch!(cudaLaunchKernelExC);
         // if name == "cudaLaunchKernel" {
         //     if !def_map.is_null() {
         //         init_runtime_from_map(def_map);
@@ -230,7 +188,7 @@ pub extern "C" fn la_symbind64(
         //     return crate::launch_wrappers::cudaLaunchKernelExC as uintptr_t;
         // }
 
-        macro_rules! cu_launch_wrapper {
+        macro_rules! intercept_cu_launch {
             ($func_name:ident) => {
                 if name == stringify!($func_name) {
                     if !def_map.is_null() {
@@ -242,8 +200,8 @@ pub extern "C" fn la_symbind64(
             };
         }
         // 2. Intercept Driver API
-        cu_launch_wrapper!(cuLaunchKernel);
-        cu_launch_wrapper!(cuLaunchKernelEx);
+        intercept_cu_launch!(cuLaunchKernel);
+        intercept_cu_launch!(cuLaunchKernelEx);
         // if name == "cuLaunchKernel" {
         //     if !def_map.is_null() {
         //         init_driver_from_map(def_map);
