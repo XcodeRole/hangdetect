@@ -5,11 +5,11 @@ use crate::monitor::error::MonitorError;
 use crate::monitor::kernel_exec_time_aspect::QueryResult::Completed;
 use anyhow::anyhow;
 use object_pool::Pool;
-use once_cell::sync::Lazy;
+use once_cell::sync::{Lazy,OnceCell};
 use serde::Serialize;
 use std::cell::RefCell;
 use std::sync::{Arc, Condvar};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use threadpool::ThreadPool;
 
 struct Notification {
@@ -58,6 +58,7 @@ static BASE_EVENT: Lazy<CUDAEvent> = Lazy::new(|| {
 static BASE_INIT_LOCK: Lazy<std::sync::Mutex<()>> = Lazy::new(|| std::sync::Mutex::new(()));
 static BASE_RECORDED: Lazy<std::sync::atomic::AtomicBool> =
     Lazy::new(|| std::sync::atomic::AtomicBool::new(false));
+static BASE_CPU_TIME: OnceCell<SystemTime> = OnceCell::new();
 
 thread_local! {
     static LABEL: RefCell<String> = RefCell::new(String::new());
@@ -99,6 +100,10 @@ fn query_event_with_notification(event: &CUDAEvent, token: &Notification) -> Que
 #[derive(Serialize, Debug)]
 #[serde(tag = "type", content = "data")]
 enum LogMessage<'a> {
+    Base {
+        pid: u32,
+        timestamp_ms: f64,
+    },
     Start {
         kern_label: &'a str,
         user_label: &'a str,
@@ -120,6 +125,30 @@ impl EventLogger {
             thread,
             cancellation_token,
         }
+    }
+
+    fn wait_base_event(&self) {
+        if BASE_CPU_TIME.get().is_some() {
+            return;
+        }
+        if let Err(err) = BASE_EVENT.synchronize().map_err(|e| anyhow!(e)) {
+            log::error!("failed to synchronize base event: {}", err);
+            return;
+        }
+        
+        let now: SystemTime = SystemTime::now();
+        let _ = BASE_CPU_TIME.set(now);
+        
+        let duration = now.duration_since(UNIX_EPOCH).unwrap_or(Duration::from_secs(0));
+        
+        log::info!(
+            "{}",
+            serde_json::to_string(&LogMessage::Base {
+                pid: std::process::id(),
+                timestamp_ms: duration.as_secs_f64() * 1000.0,
+            })
+            .expect("Failed to serialize Base event")
+        );
     }
 
     fn add_event(&self, start: CUDAEvent, end: CUDAEvent, kern_label: String, user_label: String) {
@@ -220,6 +249,7 @@ impl MonitorAspect for KernelExecTimeAspect {
                     return Err(e);
                 }
                 BASE_RECORDED.store(true, std::sync::atomic::Ordering::SeqCst);
+                EVENT_LOGGER.wait_base_event();
             }
             drop(_guard);
         }

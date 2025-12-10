@@ -52,7 +52,6 @@ pub struct link_map {
 
 static RUNTIME_INIT: Once = Once::new();
 static DRIVER_INIT: Once = Once::new();
-static NCCL_INIT: Once = Once::new();
 
 fn init_runtime_from_map(def_map: *mut link_map) {
     RUNTIME_INIT.call_once(|| unsafe {
@@ -77,6 +76,7 @@ fn init_runtime_from_map(def_map: *mut link_map) {
         init_runtime_api!("cudaEventRecord", event_record);
         init_runtime_api!("cudaEventElapsedTime", event_elapsed_time);
         init_runtime_api!("cudaEventQuery", event_query);
+        init_runtime_api!("cudaEventSynchronize", event_synchronize);
     });
 }
 

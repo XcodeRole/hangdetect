@@ -74,6 +74,8 @@ type CudaEventElapsedTime =
 // cudaError_t cudaEventQuery ( cudaEvent_t event )
 type CudaEventQuery = unsafe extern "C" fn(event: *const c_void) -> std::ffi::c_int;
 
+type CudaEventSynchronize = unsafe extern "C" fn(event: *const c_void) -> std::ffi::c_int;
+
 // CUresult cuLaunchKernel ( CUfunction f, unsigned int  gridDimX, unsigned int  gridDimY,
 //                           unsigned int  gridDimZ, unsigned int  blockDimX,
 //                           unsigned int  blockDimY, unsigned int  blockDimZ,
@@ -147,6 +149,7 @@ pub struct RuntimeApiTable {
     pub event_record: Option<CudaEventRecord>,
     pub event_elapsed_time: Option<CudaEventElapsedTime>,
     pub event_query: Option<CudaEventQuery>,
+    pub event_synchronize: Option<CudaEventSynchronize>,
 }
 
 pub struct DriverApiTable {
@@ -165,6 +168,7 @@ pub static mut RUNTIME_API: RuntimeApiTable = RuntimeApiTable {
     event_record: None,
     event_elapsed_time: None,
     event_query: None,
+    event_synchronize: None,
 };
 
 pub static mut DRIVER_API: DriverApiTable = DriverApiTable {
@@ -789,6 +793,26 @@ impl CUDAEvent {
                 Ok(false)
             } else {
                 Err(CUDAError { code: cuda_status })
+            }
+        }
+    }
+    pub fn synchronize(&self) -> Result<(), CUDAError> {
+        unsafe {
+            let func_ptr = match RUNTIME_API.event_synchronize {
+                Some(f) => f,
+                None => {
+                    return Err(CUDAError { code: -1 });
+                }
+            };
+            loop {
+                let cuda_status = func_ptr(self.event as *const c_void);
+                if cuda_status == 0 {
+                    return Ok(());
+                } else if cuda_status == 600 {
+                    continue;
+                } else {
+                    return Err(CUDAError { code: cuda_status });
+                }
             }
         }
     }
