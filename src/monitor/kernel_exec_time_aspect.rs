@@ -63,6 +63,7 @@ thread_local! {
     static LABEL: RefCell<String> = RefCell::new(String::new());
     static START_EVENT: RefCell<Option<CUDAEvent>> = RefCell::new(None);
     static USER_LABEL: RefCell<String> = RefCell::new(String::new());
+    static RECURSION_DEPTH: RefCell<usize> = RefCell::new(0);
 }
 
 pub struct KernelExecTimeAspect;
@@ -197,19 +198,33 @@ static EVENT_LOGGER: Lazy<EventLogger> = Lazy::new(|| EventLogger::new());
 
 impl MonitorAspect for KernelExecTimeAspect {
     fn before_call(&self, launch: &LaunchCUDAKernel) -> Result<(), MonitorError> {
+        let is_outermost = RECURSION_DEPTH.with(|depth| {
+            let mut d = depth.borrow_mut();
+            *d += 1;
+            *d == 1
+        });
+
+        if !is_outermost {
+            return Ok(());
+        }
+
         // DCL
         if !BASE_RECORDED.load(std::sync::atomic::Ordering::SeqCst) {
             let _guard = BASE_INIT_LOCK.lock().unwrap();
             if !BASE_RECORDED.load(std::sync::atomic::Ordering::SeqCst) {
-                BASE_EVENT
+                if let Err(e) = BASE_EVENT
                     .record(launch.stream())
-                    .map_err(MonitorError::CUDAError)?;
+                    .map_err(MonitorError::CUDAError) 
+                {
+                    RECURSION_DEPTH.with(|depth| *depth.borrow_mut() -= 1);
+                    return Err(e);
+                }
                 BASE_RECORDED.store(true, std::sync::atomic::Ordering::SeqCst);
             }
             drop(_guard);
         }
 
-        START_EVENT.with(|se| -> Result<(), MonitorError> {
+        let result = START_EVENT.with(|se| -> Result<(), MonitorError> {
             let mut mut_se = se.borrow_mut();
             if mut_se.is_some() {
                 return Err(MonitorError::Internal(anyhow!(
@@ -229,10 +244,25 @@ impl MonitorAspect for KernelExecTimeAspect {
 
             LABEL.with(|label| label.replace(format!("{}", launch)));
             Ok(())
-        })
+        });
+
+        if result.is_err() {
+            RECURSION_DEPTH.with(|depth| *depth.borrow_mut() -= 1);
+        }
+        result
     }
 
     fn after_call(&self, launch: &LaunchCUDAKernel) -> Result<(), MonitorError> {
+        let is_outermost = RECURSION_DEPTH.with(|depth| {
+            let mut d = depth.borrow_mut();
+            *d -= 1;
+            *d == 0
+        });
+
+        if !is_outermost {
+            return Ok(());
+        }
+
         let mut ev = START_EVENT.replace(None);
         if ev.is_none() {
             return Err(MonitorError::Internal(anyhow!("START_EVENT is not set")));

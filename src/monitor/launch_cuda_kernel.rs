@@ -19,6 +19,11 @@ pub enum LaunchCUDAKernel {
         func: *const c_void,
         stream: *const c_void,
     },
+
+    Nccl {
+        name: &'static str,
+        stream: *const c_void,
+    },
 }
 
 pub struct FuncName {
@@ -119,6 +124,10 @@ impl LaunchCUDAKernel {
         match self {
             LaunchCUDAKernel::Runtime { func, .. } => (RUNTIME_KERNEL_NAME_LOOKUP_FN)(*func),
             LaunchCUDAKernel::Driver { func, .. } => (DRIVER_KERNEL_NAME_LOOKUP_FN)(*func),
+            LaunchCUDAKernel::Nccl { name, .. } => Ok(Arc::new(FuncName {
+                symbol: name.to_string(),
+                demangled: None,
+            })),
         }
     }
 
@@ -126,6 +135,7 @@ impl LaunchCUDAKernel {
         match self {
             LaunchCUDAKernel::Runtime { stream, .. } => *stream,
             LaunchCUDAKernel::Driver { stream, .. } => *stream,
+            LaunchCUDAKernel::Nccl { stream, .. } => *stream,
         }
     }
     pub fn stream_id(&self) -> Result<u64, MonitorError> {
@@ -141,6 +151,7 @@ impl Display for LaunchCUDAKernel {
             match self {
                 LaunchCUDAKernel::Runtime { .. } => "Runtime",
                 LaunchCUDAKernel::Driver { .. } => "Driver",
+                LaunchCUDAKernel::Nccl { .. } => "NCCL",
             },
             self.func_name()
                 .map_err(|_| std::fmt::Error)?

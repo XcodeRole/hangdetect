@@ -74,3 +74,271 @@ pub extern "C" fn cuLaunchKernelEx(
         || cuda_funcs::launch_cu_kernel_ex(config, func, kernel_params, extra),
     )
 }
+
+// NCCL Wrappers
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ncclAllReduce(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: cuda_funcs::ncclDataType_t,
+    op: cuda_funcs::ncclRedOp_t,
+    comm: cuda_funcs::ncclComm_t,
+    stream: *mut c_void,
+) -> cuda_funcs::ncclResult_t {
+    monitor_launch_cuda_kernel(
+        LaunchCUDAKernel::Nccl {
+            name: "ncclAllReduce",
+            stream,
+        },
+        || {
+            match cuda_funcs::nccl_all_reduce(sendbuff, recvbuff, count, datatype, op, comm, stream)
+            {
+                0 => Ok(()),
+                e => Err(cuda_funcs::CUDAError { code: e }),
+            }
+        },
+    )
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ncclBroadcast(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: cuda_funcs::ncclDataType_t,
+    root: c_int,
+    comm: cuda_funcs::ncclComm_t,
+    stream: *mut c_void,
+) -> cuda_funcs::ncclResult_t {
+    monitor_launch_cuda_kernel(
+        LaunchCUDAKernel::Nccl {
+            name: "ncclBroadcast",
+            stream,
+        },
+        || {
+            match cuda_funcs::nccl_broadcast(sendbuff, recvbuff, count, datatype, root, comm, stream)
+            {
+                0 => Ok(()),
+                e => Err(cuda_funcs::CUDAError { code: e }),
+            }
+        },
+    )
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ncclBcast(
+    buff: *mut c_void,
+    count: usize,
+    datatype: cuda_funcs::ncclDataType_t,
+    root: c_int,
+    comm: cuda_funcs::ncclComm_t,
+    stream: *mut c_void,
+) -> cuda_funcs::ncclResult_t {
+    monitor_launch_cuda_kernel(
+        LaunchCUDAKernel::Nccl {
+            name: "ncclBcast",
+            stream,
+        },
+        || {
+            match cuda_funcs::nccl_bcast(buff, count, datatype, root, comm, stream) {
+                0 => Ok(()),
+                e => Err(cuda_funcs::CUDAError { code: e }),
+            }
+        },
+    )
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ncclReduce(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: cuda_funcs::ncclDataType_t,
+    op: cuda_funcs::ncclRedOp_t,
+    root: c_int,
+    comm: cuda_funcs::ncclComm_t,
+    stream: *mut c_void,
+) -> cuda_funcs::ncclResult_t {
+    monitor_launch_cuda_kernel(
+        LaunchCUDAKernel::Nccl {
+            name: "ncclReduce",
+            stream,
+        },
+        || {
+            match cuda_funcs::nccl_reduce(sendbuff, recvbuff, count, datatype, op, root, comm, stream)
+            {
+                0 => Ok(()),
+                e => Err(cuda_funcs::CUDAError { code: e }),
+            }
+        },
+    )
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ncclAllGather(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    sendcount: usize,
+    datatype: cuda_funcs::ncclDataType_t,
+    comm: cuda_funcs::ncclComm_t,
+    stream: *mut c_void,
+) -> cuda_funcs::ncclResult_t {
+    monitor_launch_cuda_kernel(
+        LaunchCUDAKernel::Nccl {
+            name: "ncclAllGather",
+            stream,
+        },
+        || {
+            match cuda_funcs::nccl_all_gather(sendbuff, recvbuff, sendcount, datatype, comm, stream)
+            {
+                0 => Ok(()),
+                e => Err(cuda_funcs::CUDAError { code: e }),
+            }
+        },
+    )
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ncclReduceScatter(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    recvcount: usize,
+    datatype: cuda_funcs::ncclDataType_t,
+    op: cuda_funcs::ncclRedOp_t,
+    comm: cuda_funcs::ncclComm_t,
+    stream: *mut c_void,
+) -> cuda_funcs::ncclResult_t {
+    monitor_launch_cuda_kernel(
+        LaunchCUDAKernel::Nccl {
+            name: "ncclReduceScatter",
+            stream,
+        },
+        || {
+            match cuda_funcs::nccl_reduce_scatter(
+                sendbuff, recvbuff, recvcount, datatype, op, comm, stream,
+            ) {
+                0 => Ok(()),
+                e => Err(cuda_funcs::CUDAError { code: e }),
+            }
+        },
+    )
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ncclAlltoAll(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: cuda_funcs::ncclDataType_t,
+    comm: cuda_funcs::ncclComm_t,
+    stream: *mut c_void,
+) -> cuda_funcs::ncclResult_t {
+    monitor_launch_cuda_kernel(
+        LaunchCUDAKernel::Nccl {
+            name: "ncclAlltoAll",
+            stream,
+        },
+        || {
+            match cuda_funcs::nccl_all_to_all(sendbuff, recvbuff, count, datatype, comm, stream) {
+                0 => Ok(()),
+                e => Err(cuda_funcs::CUDAError { code: e }),
+            }
+        },
+    )
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ncclGather(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: cuda_funcs::ncclDataType_t,
+    root: c_int,
+    comm: cuda_funcs::ncclComm_t,
+    stream: *mut c_void,
+) -> cuda_funcs::ncclResult_t {
+    monitor_launch_cuda_kernel(
+        LaunchCUDAKernel::Nccl {
+            name: "ncclGather",
+            stream,
+        },
+        || {
+            match cuda_funcs::nccl_gather(sendbuff, recvbuff, count, datatype, root, comm, stream) {
+                0 => Ok(()),
+                e => Err(cuda_funcs::CUDAError { code: e }),
+            }
+        },
+    )
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ncclScatter(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: cuda_funcs::ncclDataType_t,
+    root: c_int,
+    comm: cuda_funcs::ncclComm_t,
+    stream: *mut c_void,
+) -> cuda_funcs::ncclResult_t {
+    monitor_launch_cuda_kernel(
+        LaunchCUDAKernel::Nccl {
+            name: "ncclScatter",
+            stream,
+        },
+        || {
+            match cuda_funcs::nccl_scatter(sendbuff, recvbuff, count, datatype, root, comm, stream) {
+                0 => Ok(()),
+                e => Err(cuda_funcs::CUDAError { code: e }),
+            }
+        },
+    )
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ncclSend(
+    sendbuff: *const c_void,
+    count: usize,
+    datatype: cuda_funcs::ncclDataType_t,
+    peer: c_int,
+    comm: cuda_funcs::ncclComm_t,
+    stream: *mut c_void,
+) -> cuda_funcs::ncclResult_t {
+    monitor_launch_cuda_kernel(
+        LaunchCUDAKernel::Nccl {
+            name: "ncclSend",
+            stream,
+        },
+        || {
+            match cuda_funcs::nccl_send(sendbuff, count, datatype, peer, comm, stream) {
+                0 => Ok(()),
+                e => Err(cuda_funcs::CUDAError { code: e }),
+            }
+        },
+    )
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ncclRecv(
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: cuda_funcs::ncclDataType_t,
+    peer: c_int,
+    comm: cuda_funcs::ncclComm_t,
+    stream: *mut c_void,
+) -> cuda_funcs::ncclResult_t {
+    monitor_launch_cuda_kernel(
+        LaunchCUDAKernel::Nccl {
+            name: "ncclRecv",
+            stream,
+        },
+        || {
+            match cuda_funcs::nccl_recv(recvbuff, count, datatype, peer, comm, stream) {
+                0 => Ok(()),
+                e => Err(cuda_funcs::CUDAError { code: e }),
+            }
+        },
+    )
+}

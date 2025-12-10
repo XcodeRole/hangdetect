@@ -137,91 +137,182 @@ type CuFuncGetName = unsafe extern "C" fn(
     func: *const c_void,
 ) -> std::ffi::c_int;
 
-static mut CUDA_GET_NAME_FUNC: Option<CudaFuncGetNameFunc> = None;
-static mut CUDA_LAUNCH_KERNEL_FUNC: Option<CudaFuncLaunchKernel> = None;
-
-static mut CUDA_LAUNCH_KERNEL_EXC_FUNC: Option<CudaFuncLaunchKernelExC> = None;
-
-static mut CUDA_STREAM_GET_ID_FUNC: Option<CudaStreamGetId> = None;
-
-static mut CUDA_EVENT_CREATE_WITH_FLAGS_FUNC: Option<CudaEventCreateWithFlags> = None;
-
-static mut CUDA_EVENT_DESTROY_FUNC: Option<CudaEventDestroy> = None;
-
-static mut CUDA_EVENT_RECORD_FUNC: Option<CudaEventRecord> = None;
-static mut CUDA_EVENT_ELAPSED_TIME_FUNC: Option<CudaEventElapsedTime> = None;
-
-static mut CUDA_EVENT_QUERY_FUNC: Option<CudaEventQuery> = None;
-
-static mut CU_LAUNCH_KERNEL_FUNC: Option<CuFuncLaunchKernel> = None;
-
-static mut CU_LAUNCH_KERNEL_EXC_FUNC: Option<CuFuncLaunchKernelEx> = None;
-
-static mut CU_GET_NAME_FUNC: Option<CuFuncGetName> = None;
-
-pub unsafe fn set_cuda_get_name_func_addr(addr: usize) {
-    let fn_ptr = addr as *mut c_void;
-    CUDA_GET_NAME_FUNC = Some(std::mem::transmute(fn_ptr));
+pub struct RuntimeApiTable {
+    pub get_name: Option<CudaFuncGetNameFunc>,
+    pub launch_kernel: Option<CudaFuncLaunchKernel>,
+    pub launch_kernel_ex_c: Option<CudaFuncLaunchKernelExC>,
+    pub stream_get_id: Option<CudaStreamGetId>,
+    pub event_create_with_flags: Option<CudaEventCreateWithFlags>,
+    pub event_destroy: Option<CudaEventDestroy>,
+    pub event_record: Option<CudaEventRecord>,
+    pub event_elapsed_time: Option<CudaEventElapsedTime>,
+    pub event_query: Option<CudaEventQuery>,
 }
 
-pub unsafe fn set_cuda_launch_kernel_addr(addr: usize) {
-    let fn_ptr = addr as *mut c_void;
-    CUDA_LAUNCH_KERNEL_FUNC = Some(std::mem::transmute(fn_ptr));
+pub struct DriverApiTable {
+    pub launch_kernel: Option<CuFuncLaunchKernel>,
+    pub launch_kernel_ex: Option<CuFuncLaunchKernelEx>,
+    pub get_name: Option<CuFuncGetName>,
 }
 
-pub unsafe fn set_cuda_launch_kernel_ex_c_addr(addr: usize) {
-    let fn_ptr = addr as *mut c_void;
-    CUDA_LAUNCH_KERNEL_EXC_FUNC = Some(std::mem::transmute(fn_ptr));
+pub static mut RUNTIME_API: RuntimeApiTable = RuntimeApiTable {
+    get_name: None,
+    launch_kernel: None,
+    launch_kernel_ex_c: None,
+    stream_get_id: None,
+    event_create_with_flags: None,
+    event_destroy: None,
+    event_record: None,
+    event_elapsed_time: None,
+    event_query: None,
+};
+
+pub static mut DRIVER_API: DriverApiTable = DriverApiTable {
+    launch_kernel: None,
+    launch_kernel_ex: None,
+    get_name: None,
+};
+
+// NCCL Types
+pub type ncclComm_t = *mut c_void;
+pub type ncclDataType_t = c_int;
+pub type ncclRedOp_t = c_int;
+pub type ncclResult_t = c_int;
+
+// Function pointer types for NCCL
+pub type NcclFuncAllReduce = unsafe extern "C" fn(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: ncclDataType_t,
+    op: ncclRedOp_t,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t;
+
+pub type NcclFuncBroadcast = unsafe extern "C" fn(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: ncclDataType_t,
+    root: c_int,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t;
+
+pub type NcclFuncBcast = unsafe extern "C" fn(
+    buff: *mut c_void,
+    count: usize,
+    datatype: ncclDataType_t,
+    root: c_int,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t;
+
+pub type NcclFuncReduce = unsafe extern "C" fn(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: ncclDataType_t,
+    op: ncclRedOp_t,
+    root: c_int,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t;
+
+pub type NcclFuncAllGather = unsafe extern "C" fn(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    sendcount: usize,
+    datatype: ncclDataType_t,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t;
+
+pub type NcclFuncReduceScatter = unsafe extern "C" fn(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    recvcount: usize,
+    datatype: ncclDataType_t,
+    op: ncclRedOp_t,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t;
+
+pub type NcclFuncAllToAll = unsafe extern "C" fn(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: ncclDataType_t,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t;
+
+pub type NcclFuncGather = unsafe extern "C" fn(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: ncclDataType_t,
+    root: c_int,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t;
+
+pub type NcclFuncScatter = unsafe extern "C" fn(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: ncclDataType_t,
+    root: c_int,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t;
+
+pub type NcclFuncSend = unsafe extern "C" fn(
+    sendbuff: *const c_void,
+    count: usize,
+    datatype: ncclDataType_t,
+    peer: c_int,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t;
+
+pub type NcclFuncRecv = unsafe extern "C" fn(
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: ncclDataType_t,
+    peer: c_int,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t;
+
+pub struct NcclApiTable {
+    pub all_reduce: Option<NcclFuncAllReduce>,
+    pub broadcast: Option<NcclFuncBroadcast>,
+    pub bcast: Option<NcclFuncBcast>,
+    pub reduce: Option<NcclFuncReduce>,
+    pub all_gather: Option<NcclFuncAllGather>,
+    pub reduce_scatter: Option<NcclFuncReduceScatter>,
+    pub all_to_all: Option<NcclFuncAllToAll>,
+    pub gather: Option<NcclFuncGather>,
+    pub scatter: Option<NcclFuncScatter>,
+    pub send: Option<NcclFuncSend>,
+    pub recv: Option<NcclFuncRecv>,
 }
 
-pub unsafe fn set_cuda_stream_get_id_addr(addr: usize) {
-    let fn_ptr = addr as *mut c_void;
-    CUDA_STREAM_GET_ID_FUNC = Some(std::mem::transmute(fn_ptr));
-}
-
-pub unsafe fn set_cuda_event_create_with_flags_addr(addr: usize) {
-    let fn_ptr = addr as *mut c_void;
-    CUDA_EVENT_CREATE_WITH_FLAGS_FUNC = Some(std::mem::transmute(fn_ptr));
-}
-
-pub unsafe fn set_cuda_event_destroy_addr(addr: usize) {
-    let fn_ptr = addr as *mut c_void;
-    CUDA_EVENT_DESTROY_FUNC = Some(std::mem::transmute(fn_ptr));
-}
-
-pub unsafe fn set_cuda_event_record_addr(addr: usize) {
-    let fn_ptr = addr as *mut c_void;
-    CUDA_EVENT_RECORD_FUNC = Some(std::mem::transmute(fn_ptr));
-}
-
-pub unsafe fn set_cuda_event_elapsed_time_addr(addr: usize) {
-    let fn_ptr = addr as *mut c_void;
-    CUDA_EVENT_ELAPSED_TIME_FUNC = Some(std::mem::transmute(fn_ptr));
-}
-
-pub unsafe fn set_cuda_event_query_addr(addr: usize) {
-    let fn_ptr = addr as *mut c_void;
-    CUDA_EVENT_QUERY_FUNC = Some(std::mem::transmute(fn_ptr));
-}
-
-pub unsafe fn set_cu_launch_kernel_addr(addr: usize) {
-    let fn_ptr = addr as *mut c_void;
-    CU_LAUNCH_KERNEL_FUNC = Some(std::mem::transmute(fn_ptr));
-}
-
-pub unsafe fn set_cu_launch_kernel_ex_addr(addr: usize) {
-    let fn_ptr = addr as *mut c_void;
-    CU_LAUNCH_KERNEL_EXC_FUNC = Some(std::mem::transmute(fn_ptr));
-}
-
-pub unsafe fn set_cu_get_name_func_addr(addr: usize) {
-    let fn_ptr = addr as *mut c_void;
-    CU_GET_NAME_FUNC = Some(std::mem::transmute(fn_ptr));
-}
-
-// init_cuda_funcs and init_cu_funcs are intentionally removed.
-// All public APIs below now rely on their corresponding function
-// pointers being initialized by la_symbind64 via the setter functions.
+pub static mut NCCL_API: NcclApiTable = NcclApiTable {
+    all_reduce: None,
+    broadcast: None,
+    bcast: None,
+    reduce: None,
+    all_gather: None,
+    reduce_scatter: None,
+    all_to_all: None,
+    gather: None,
+    scatter: None,
+    send: None,
+    recv: None,
+};
 
 #[derive(Debug)]
 pub struct CUDAError {
@@ -235,7 +326,7 @@ impl std::fmt::Display for CUDAError {
 
 pub fn get_cuda_func_name(func: *const c_void) -> Result<String, CUDAError> {
     unsafe {
-        let func_ptr = match CUDA_GET_NAME_FUNC {
+        let func_ptr = match RUNTIME_API.get_name {
             Some(f) => f,
             None => {
                 return Err(CUDAError { code: -1 });
@@ -261,7 +352,7 @@ pub fn launch_cuda_kernel(
     stream: *mut c_void,
 ) -> Result<(), CUDAError> {
     unsafe {
-        let func_ptr = match CUDA_LAUNCH_KERNEL_FUNC {
+        let func_ptr = match RUNTIME_API.launch_kernel {
             Some(f) => f,
             None => {
                 return Err(CUDAError { code: -1 });
@@ -282,7 +373,7 @@ pub fn launch_cuda_kernel_ex_c(
     args: *mut *const c_void,
 ) -> Result<(), CUDAError> {
     unsafe {
-        let func_ptr = match CUDA_LAUNCH_KERNEL_EXC_FUNC {
+        let func_ptr = match RUNTIME_API.launch_kernel_ex_c {
             Some(f) => f,
             None => {
                 return Err(CUDAError { code: -1 });
@@ -311,7 +402,7 @@ pub fn launch_cu_kernel(
     extra: *mut *const c_void,
 ) -> Result<(), CUDAError> {
     unsafe {
-        let func_ptr = match CU_LAUNCH_KERNEL_FUNC {
+        let func_ptr = match DRIVER_API.launch_kernel {
             Some(f) => f,
             None => {
                 return Err(CUDAError { code: -1 });
@@ -345,7 +436,7 @@ pub fn launch_cu_kernel_ex(
     extra: *mut *const c_void,
 ) -> Result<(), CUDAError> {
     unsafe {
-        let func_ptr = match CU_LAUNCH_KERNEL_EXC_FUNC {
+        let func_ptr = match DRIVER_API.launch_kernel_ex {
             Some(f) => f,
             None => {
                 return Err(CUDAError { code: -1 });
@@ -362,7 +453,7 @@ pub fn launch_cu_kernel_ex(
 
 pub fn cu_func_get_name(func: *const c_void) -> Result<String, CUDAError> {
     unsafe {
-        let func_ptr = match CU_GET_NAME_FUNC {
+        let func_ptr = match DRIVER_API.get_name {
             Some(f) => f,
             None => {
                 return Err(CUDAError { code: -1 });
@@ -386,7 +477,7 @@ pub fn cu_func_get_name(func: *const c_void) -> Result<String, CUDAError> {
 
 pub fn cuda_stream_get_id(stream: *const c_void) -> Result<u64, CUDAError> {
     unsafe {
-        let func_ptr = match CUDA_STREAM_GET_ID_FUNC {
+        let func_ptr = match RUNTIME_API.stream_get_id {
             Some(f) => f,
             None => {
                 return Err(CUDAError { code: -1 });
@@ -402,6 +493,223 @@ pub fn cuda_stream_get_id(stream: *const c_void) -> Result<u64, CUDAError> {
     }
 }
 
+// NCCL Wrappers
+pub fn nccl_all_reduce(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: ncclDataType_t,
+    op: ncclRedOp_t,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t {
+    unsafe {
+        match NCCL_API.all_reduce {
+            Some(f) => f(sendbuff, recvbuff, count, datatype, op, comm, stream),
+            None => {
+                log::error!("[hangdetect][nccl] ncclAllReduce not resolved");
+                -1
+            }
+        }
+    }
+}
+
+pub fn nccl_broadcast(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: ncclDataType_t,
+    root: c_int,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t {
+    unsafe {
+        match NCCL_API.broadcast {
+            Some(f) => f(sendbuff, recvbuff, count, datatype, root, comm, stream),
+            None => {
+                log::error!("[hangdetect][nccl] ncclBroadcast not resolved");
+                -1
+            }
+        }
+    }
+}
+
+pub fn nccl_bcast(
+    buff: *mut c_void,
+    count: usize,
+    datatype: ncclDataType_t,
+    root: c_int,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t {
+    unsafe {
+        match NCCL_API.bcast {
+            Some(f) => f(buff, count, datatype, root, comm, stream),
+            None => {
+                log::error!("[hangdetect][nccl] ncclBcast not resolved");
+                -1
+            }
+        }
+    }
+}
+
+pub fn nccl_reduce(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: ncclDataType_t,
+    op: ncclRedOp_t,
+    root: c_int,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t {
+    unsafe {
+        match NCCL_API.reduce {
+            Some(f) => f(sendbuff, recvbuff, count, datatype, op, root, comm, stream),
+            None => {
+                log::error!("[hangdetect][nccl] ncclReduce not resolved");
+                -1
+            }
+        }
+    }
+}
+
+pub fn nccl_all_gather(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    sendcount: usize,
+    datatype: ncclDataType_t,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t {
+    unsafe {
+        match NCCL_API.all_gather {
+            Some(f) => f(sendbuff, recvbuff, sendcount, datatype, comm, stream),
+            None => {
+                log::error!("[hangdetect][nccl] ncclAllGather not resolved");
+                -1
+            }
+        }
+    }
+}
+
+pub fn nccl_reduce_scatter(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    recvcount: usize,
+    datatype: ncclDataType_t,
+    op: ncclRedOp_t,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t {
+    unsafe {
+        match NCCL_API.reduce_scatter {
+            Some(f) => f(sendbuff, recvbuff, recvcount, datatype, op, comm, stream),
+            None => {
+                log::error!("[hangdetect][nccl] ncclReduceScatter not resolved");
+                -1
+            }
+        }
+    }
+}
+
+pub fn nccl_all_to_all(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: ncclDataType_t,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t {
+    unsafe {
+        match NCCL_API.all_to_all {
+            Some(f) => f(sendbuff, recvbuff, count, datatype, comm, stream),
+            None => {
+                log::error!("[hangdetect][nccl] ncclAlltoAll not resolved");
+                -1
+            }
+        }
+    }
+}
+
+pub fn nccl_gather(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: ncclDataType_t,
+    root: c_int,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t {
+    unsafe {
+        match NCCL_API.gather {
+            Some(f) => f(sendbuff, recvbuff, count, datatype, root, comm, stream),
+            None => {
+                log::error!("[hangdetect][nccl] ncclGather not resolved");
+                -1
+            }
+        }
+    }
+}
+
+pub fn nccl_scatter(
+    sendbuff: *const c_void,
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: ncclDataType_t,
+    root: c_int,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t {
+    unsafe {
+        match NCCL_API.scatter {
+            Some(f) => f(sendbuff, recvbuff, count, datatype, root, comm, stream),
+            None => {
+                log::error!("[hangdetect][nccl] ncclScatter not resolved");
+                -1
+            }
+        }
+    }
+}
+
+pub fn nccl_send(
+    sendbuff: *const c_void,
+    count: usize,
+    datatype: ncclDataType_t,
+    peer: c_int,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t {
+    unsafe {
+        match NCCL_API.send {
+            Some(f) => f(sendbuff, count, datatype, peer, comm, stream),
+            None => {
+                log::error!("[hangdetect][nccl] ncclSend not resolved");
+                -1
+            }
+        }
+    }
+}
+
+pub fn nccl_recv(
+    recvbuff: *mut c_void,
+    count: usize,
+    datatype: ncclDataType_t,
+    peer: c_int,
+    comm: ncclComm_t,
+    stream: *mut c_void,
+) -> ncclResult_t {
+    unsafe {
+        match NCCL_API.recv {
+            Some(f) => f(recvbuff, count, datatype, peer, comm, stream),
+            None => {
+                log::error!("[hangdetect][nccl] ncclRecv not resolved");
+                -1
+            }
+        }
+    }
+}
+
 pub struct CUDAEvent {
     event: uintptr_t,
 }
@@ -409,7 +717,7 @@ pub struct CUDAEvent {
 impl CUDAEvent {
     pub fn new() -> Result<CUDAEvent, CUDAError> {
         unsafe {
-            let func_ptr = match CUDA_EVENT_CREATE_WITH_FLAGS_FUNC {
+            let func_ptr = match RUNTIME_API.event_create_with_flags {
                 Some(f) => f,
                 None => {
                     return Err(CUDAError { code: -1 });
@@ -429,7 +737,7 @@ impl CUDAEvent {
 
     pub fn record(&self, stream: *const c_void) -> Result<(), CUDAError> {
         unsafe {
-            let func_ptr = match CUDA_EVENT_RECORD_FUNC {
+            let func_ptr = match RUNTIME_API.event_record {
                 Some(f) => f,
                 None => {
                     return Err(CUDAError { code: -1 });
@@ -446,7 +754,7 @@ impl CUDAEvent {
 
     pub fn since(&self, begin: &CUDAEvent) -> Result<f32, CUDAError> {
         unsafe {
-            let func_ptr = match CUDA_EVENT_ELAPSED_TIME_FUNC {
+            let func_ptr = match RUNTIME_API.event_elapsed_time {
                 Some(f) => f,
                 None => {
                     return Err(CUDAError { code: -1 });
@@ -468,7 +776,7 @@ impl CUDAEvent {
 
     pub fn query(&self) -> Result<bool, CUDAError> {
         unsafe {
-            let func_ptr = match CUDA_EVENT_QUERY_FUNC {
+            let func_ptr = match RUNTIME_API.event_query {
                 Some(f) => f,
                 None => {
                     return Err(CUDAError { code: -1 });
@@ -489,7 +797,7 @@ impl CUDAEvent {
 impl Drop for CUDAEvent {
     fn drop(&mut self) {
         unsafe {
-            if let Some(func_ptr) = CUDA_EVENT_DESTROY_FUNC {
+            if let Some(func_ptr) = RUNTIME_API.event_destroy {
                 let cuda_status = func_ptr(self.event as *const c_void);
                 if cuda_status != 0 {
                     eprintln!("failed to destroy CUDA event: {}", cuda_status);
