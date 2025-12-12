@@ -14,6 +14,7 @@ mod cuda_funcs;
 mod logger;
 mod monitor;
 use crate::logger::init_logger;
+mod settings_api;
 
 use crate::cuda_funcs::{RUNTIME_API, DRIVER_API, NCCL_API};
 
