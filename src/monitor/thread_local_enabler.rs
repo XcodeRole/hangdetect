@@ -23,3 +23,9 @@ impl Filter for ThreadLocalEnabler {
         })
     }
 }
+
+pub fn set_hang_detection_enabled(enabled: bool) {
+    HANG_DETECTION_ENABLED.with(|h| {
+        h.borrow_mut().replace(enabled);
+    });
+}

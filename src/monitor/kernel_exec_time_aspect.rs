@@ -311,3 +311,7 @@ impl MonitorAspect for KernelExecTimeAspect {
         Ok(())
     }
 }
+
+pub fn set_kernel_exec_time_user_label(label: &str) {
+    USER_LABEL.with(|l| l.replace(label.to_string()));
+}
