@@ -1,70 +1,137 @@
 # HangDetect
 
-A CUDA kernel hang detection and monitoring library that provides detailed execution time logging for CUDA kernels.
+HangDetect is a CUDA kernel monitoring and hang-detection helper library built as a Linux ELF audit module. It intercepts CUDA and NCCL calls via `LD_AUDIT`, measures execution time using CUDA events, and emits structured logs for downstream analysis.
 
 ## Features
 
-- **Kernel Execution Monitoring**: Monitors CUDA kernel launches and tracks execution time
-- **Hang Detection**: Detects potential kernel hangs using timeout mechanisms
-- **Detailed Logging**: Provides structured JSON logs with kernel information and execution metrics
-- **Runtime & Driver API Support**: Supports both CUDA Runtime (`cudaLaunchKernel`) and Driver API (`cuLaunchKernel`) functions
-- **User Labels**: Allows custom labeling of kernel executions for better identification
+- **LD_AUDIT-based interception**  
+  Uses the ELF auditing interface to hook CUDA Runtime / Driver APIs and NCCL collectives.
+- **Kernel & NCCL monitoring**  
+  Measures GPU execution time for kernel launches and NCCL operations.
+- **Hang-detection oriented**  
+  Produces events that can be used to implement hang detection and performance alerting.
+- **Structured JSON logging**  
+  Logs can be fed into existing log / tracing systems.
+- **Simple C API**  
+  Per-thread enable / disable and user labels for tagging executions.
 
-## Current Usage
+## Quick Start
 
-Currently, HangDetect requires using `LD_PRELOAD` to intercept CUDA kernel launch functions and enable monitoring.
-
-### Building
+### Build
 
 ```bash
 cargo build --release
 ```
 
-### Usage with LD_PRELOAD
+This produces a shared library such as:
 
-1. Build the library:
-   ```bash
-   cargo build --release
-   ```
+```text
+target/release/libhangdetect.so
+```
 
-2. Run your CUDA application with the library preloaded:
-   ```bash
-   LD_PRELOAD=/path/to/target/release/libhangdetect.so ./your_cuda_application
-   ```
+### Run with LD_AUDIT
 
-### Configuration
+Run your CUDA / NCCL application with HangDetect loaded as an audit module:
 
-The library provides C APIs for configuration:
+```bash
+LD_AUDIT=/full/path/to/target/release/libhangdetect.so ./your_cuda_application
+```
+
+Notes:
+
+- Use an **absolute path** for `LD_AUDIT`.
+- You can chain multiple audit modules if needed:
+
+  ```bash
+  LD_AUDIT="/path/to/libhangdetect.so:/path/to/another_audit.so" ./your_cuda_application
+  ```
+
+When the dynamic linker binds CUDA / NCCL symbols, HangDetect automatically wraps the supported APIs.
+
+## Configuration
+
+HangDetect is configured via environment variables and a small C API.
+
+### Environment variables
+
+- `HANG_DETECTION_ENABLED`  
+  Build-time default for monitoring.  
+  If set to `"1"` when building / testing (for example `HANG_DETECTION_ENABLED=1 cargo test`), monitoring is enabled by default for new threads.  
+  Otherwise, monitoring is disabled by default and must be enabled with the C API.
+
+- `HANGDETECT_LOG_FILE`  
+  Base path of the log file.  
+  If set, logs are written to:
+
+  ```text
+  <HANGDETECT_LOG_FILE>.<LOCAL_RANK>
+  ```
+
+  If unset, logging falls back to the default `env_logger` output (typically stderr).
+
+- `HANGDETECT_LOG_LEVEL`  
+  Log level for HangDetect internals.  
+  Examples: `trace`, `debug`, `info`, `warn`, `error` (default: `info`).
+
+- `HANGDETECT_KERNEL_FILTER`  
+  Optional regular expression used to filter which kernels / NCCL operations are monitored.  
+  If set, only names matching this regex are logged; if unset, everything is monitored.
+
+- `LOCAL_RANK`  
+  Optional rank identifier (often set by distributed training launchers).  
+  Used only to suffix the log file name when `HANGDETECT_LOG_FILE` is set.
+
+### C API
 
 ```c
-// Enable or disable hang detection
+// Enable or disable monitoring for the current thread.
 void hangdetect_set_enable(bool enabled);
 
-// Set a custom label for kernel execution logging
+// Set a user label for the current thread.
+// The label will be attached to subsequent kernel/NCCL logs.
+// Pass NULL to clear the label.
 void hangdetect_set_kernel_exec_label(const char* label);
 ```
 
-## Log Output
+Typical usage (C/C++):
 
-The library outputs structured JSON logs containing:
+```c
+#include <stdbool.h>
 
-- **Start Events**: When kernels begin execution
-- **Complete Events**: When kernels finish execution with duration
-- **User Labels**: Custom labels for identification
+void run_training_step(void) {
+    // Enable monitoring for this thread
+    hangdetect_set_enable(true);
 
-Example log format:
-```json
-{"type":"Start","data":{"kern_label":"kernel_name","user_label":"custom_label"}}
-{"type":"Complete","data":{"kern_label":"kernel_name","user_label":"custom_label","duration_ms":12.34}}
+    // Tag all operations in this step
+    hangdetect_set_kernel_exec_label("training_step_0");
+
+    // Launch your CUDA kernels / NCCL collectives here
+}
 ```
 
-## TODO
+A similar pattern can be used from Python via `ctypes` or `cffi` by loading the same `libhangdetect.so` specified in `LD_AUDIT`.
 
-### Python API
-- [ ] Add Python APIs
-- [ ] Add PyTorch example
+## Log Output
 
+HangDetect emits JSON lines describing kernel / NCCL execution. For example:
+
+```json
+{"type":"Base","data":{"pid":12345,"timestamp_ms":1702646453000.0}}
+{"type":"Start","data":{"kern_label":"cudaLaunchKernel(Runtime)","user_label":"training_step_0","timestamp_ms":12.34}}
+{"type":"Complete","data":{"kern_label":"cudaLaunchKernel(Runtime)","user_label":"training_step_0","duration_ms":1.23,"timestamp_ms":13.57}}
+```
+
+These events can be used to:
+
+- Detect long-running or stuck operations.
+- Correlate GPU activity with higher-level application phases.
+- Build timelines for debugging hangs and performance issues.
+
+## Python / High-level Bindings (Planned)
+
+- Python wrapper around the C API for PyTorch / other Python workloads.
+- Example integration for common training loops.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License – see the LICENSE file for details.
