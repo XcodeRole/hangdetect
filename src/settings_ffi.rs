@@ -2,7 +2,7 @@ use core::ffi::c_char;
 
 use crate::monitor;
 
-// Settings APIs exposed via C ABI for Python/FFI callers.
+// Settings APIs exposed via C ABI for FFI callers.
 // These are thread-local switches and labels that control hangdetect behavior.
 
 #[unsafe(no_mangle)]
