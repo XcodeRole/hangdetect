@@ -13,9 +13,7 @@ impl Filter for ThreadLocalEnabler {
             let mut flag = h.borrow_mut();
 
             if flag.is_none() {
-                let enabled = std::env::var("HANG_DETECTION_ENABLED")
-                    .map(|v| v == "1")
-                    .unwrap_or(false);
+                let enabled = option_env!("HANG_DETECTION_ENABLED").unwrap_or_else(|| "0") == "1";
                 flag.replace(enabled);
                 log::info!("HANG_DETECTION_ENABLED [{}]", enabled);
             }
