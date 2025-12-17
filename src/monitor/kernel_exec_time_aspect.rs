@@ -8,7 +8,7 @@ use object_pool::Pool;
 use once_cell::sync::{Lazy,OnceCell};
 use serde::Serialize;
 use std::cell::RefCell;
-use std::sync::{Arc, Condvar};
+use std::sync::{Arc, Condvar, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use threadpool::ThreadPool;
 
@@ -60,10 +60,12 @@ static BASE_RECORDED: Lazy<std::sync::atomic::AtomicBool> =
     Lazy::new(|| std::sync::atomic::AtomicBool::new(false));
 static BASE_CPU_TIME: OnceCell<SystemTime> = OnceCell::new();
 
+// Process-wide user label controlled via FFI/settings.
+static USER_LABEL: Lazy<RwLock<String>> = Lazy::new(|| RwLock::new(String::new()));
+
 thread_local! {
     static LABEL: RefCell<String> = RefCell::new(String::new());
     static START_EVENT: RefCell<Option<CUDAEvent>> = RefCell::new(None);
-    static USER_LABEL: RefCell<String> = RefCell::new(String::new());
     static RECURSION_DEPTH: RefCell<usize> = RefCell::new(0);
 }
 
@@ -306,12 +308,14 @@ impl MonitorAspect for KernelExecTimeAspect {
             .map_err(MonitorError::CUDAError)?;
 
         let label = LABEL.replace(String::new());
+        let user_label = USER_LABEL.read().unwrap().clone();
 
-        EVENT_LOGGER.add_event(begin, end, label, USER_LABEL.with(|l| l.borrow().clone()));
+        EVENT_LOGGER.add_event(begin, end, label, user_label);
         Ok(())
     }
 }
 
 pub fn set_kernel_exec_time_user_label(label: &str) {
-    USER_LABEL.with(|l| l.replace(label.to_string()));
+    let mut global = USER_LABEL.write().unwrap();
+    *global = label.to_string();
 }

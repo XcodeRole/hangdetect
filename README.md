@@ -12,8 +12,8 @@ HangDetect is a CUDA kernel monitoring and hang-detection helper library built a
   Produces events that can be used to implement hang detection and performance alerting.
 - **Structured JSON logging**  
   Logs can be fed into existing log / tracing systems.
-- **Simple C API**  
-  Per-thread enable / disable and user labels for tagging executions.
+- **Runtime control via C/Python FFI**  
+  Process-wide enable/disable switch and user labels for tagging executions, controllable from C/C++ or Python via a small FFI layer.
 
 ## Quick Start
 
@@ -50,14 +50,14 @@ When the dynamic linker binds CUDA / NCCL symbols, HangDetect automatically wrap
 
 ## Configuration
 
-HangDetect is configured via environment variables and a small C API.
+HangDetect is configured via environment variables and a small FFI-accessible control API.
 
 ### Environment variables
 
 - `HANG_DETECTION_ENABLED`  
-  Build-time default for monitoring.  
-  If set to `"1"` when building / testing (for example `HANG_DETECTION_ENABLED=1 cargo test`), monitoring is enabled by default for new threads.  
-  Otherwise, monitoring is disabled by default and must be enabled with the C API.
+  Process-wide default for monitoring.  
+  If set to `"1"` at process start (for example `HANG_DETECTION_ENABLED=1 LD_AUDIT=... python your_script.py`), monitoring starts enabled.  
+  Otherwise, monitoring starts disabled and can be toggled at runtime via the control API.
 
 - `HANGDETECT_LOG_FILE`  
   Base path of the log file.  
@@ -81,13 +81,15 @@ HangDetect is configured via environment variables and a small C API.
   Optional rank identifier (often set by distributed training launchers).  
   Used only to suffix the log file name when `HANGDETECT_LOG_FILE` is set.
 
-### C API
+### Control API (C / Python)
+
+At runtime, HangDetect exposes a small control API via FFI. The LD_AUDIT module publishes the addresses of these functions in a per-process shared-memory block, and higher-level code (for example Python) can attach to them.
 
 ```c
-// Enable or disable monitoring for the current thread.
+// Enable or disable monitoring for this process.
 void hangdetect_set_enable(bool enabled);
 
-// Set a user label for the current thread.
+// Set a user label for this process.
 // The label will be attached to subsequent kernel/NCCL logs.
 // Pass NULL to clear the label.
 void hangdetect_set_kernel_exec_label(const char* label);
@@ -109,7 +111,11 @@ void run_training_step(void) {
 }
 ```
 
-A similar pattern can be used from Python via `ctypes` or `cffi` by loading the same `libhangdetect.so` specified in `LD_AUDIT`.
+A similar pattern can be used from Python. In this repository, `tests/pytorch_test.py` demonstrates how to:
+
+- Read the FFI function pointers exported by the LD_AUDIT module from `/dev/shm/hangdetect_ctl_<PID>`.
+- Wrap them with `ctypes` into `hangdetect_set_enable` / `hangdetect_set_kernel_exec_label` helpers.
+- Dynamically toggle monitoring and attach labels (e.g. around module forward passes) in a PyTorch training loop, including multi-process runs via `torchrun`.
 
 ## Log Output
 

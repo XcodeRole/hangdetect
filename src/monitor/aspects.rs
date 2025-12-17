@@ -3,7 +3,7 @@ use super::kernel_name_filter::KernelNameFilter;
 use super::logging_aspect::LoggingAspect;
 use super::monitor_aspect::MonitorAspect;
 use crate::monitor::kernel_exec_time_aspect::KernelExecTimeAspect;
-use crate::monitor::thread_local_enabler::ThreadLocalEnabler;
+use crate::monitor::enabler::Enabler;
 use once_cell::sync::Lazy;
 
 struct MergeAspects<A, B>
@@ -58,7 +58,7 @@ pub static ASPECTS: Lazy<Box<dyn MonitorAspect + Send + Sync>> = Lazy::new(|| {
     let merged_aspect = merge_filter(kernel_filter, aspect);
     
     // Add thread local enabler
-    let merged_aspect = merge_filter(ThreadLocalEnabler {}, merged_aspect);
+    let merged_aspect = merge_filter(Enabler {}, merged_aspect);
     
     Box::new(merged_aspect) as Box<dyn MonitorAspect + Send + Sync>
 });
