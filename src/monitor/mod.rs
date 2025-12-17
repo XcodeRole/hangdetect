@@ -5,7 +5,7 @@ mod kernel_exec_time_aspect;
 mod launch_cuda_kernel;
 mod logging_aspect;
 mod monitor_aspect;
-mod thread_local_enabler;
+mod enabler;
 mod kernel_name_filter;
 
 use crate::cuda_funcs;
@@ -14,8 +14,8 @@ pub use launch_cuda_kernel::LaunchCUDAKernel;
 use libc::c_int;
 
 use aspects::ASPECTS;
+pub use enabler::set_hang_detection_enabled;
 pub use kernel_exec_time_aspect::set_kernel_exec_time_user_label;
-pub use thread_local_enabler::set_hang_detection_enabled;
 
 pub fn monitor_launch_cuda_kernel<F>(launch: LaunchCUDAKernel, f: F) -> c_int
 where

@@ -1,8 +1,8 @@
 use libc::{
-    c_char, 
-    c_uint, 
+    c_char,
+    c_uint,
     uintptr_t,
-    Elf64_Sym, 
+    Elf64_Sym,
     Lmid_t,
     Elf64_Addr,
 };
@@ -15,6 +15,7 @@ mod logger;
 mod monitor;
 use crate::logger::init_logger;
 mod settings_ffi;
+use crate::settings_ffi::export_ffi_control_functions;
 
 use crate::cuda_funcs::{RUNTIME_API, DRIVER_API, NCCL_API};
 
@@ -104,6 +105,7 @@ fn init_driver_from_map(def_map: *mut link_map) {
 #[unsafe(no_mangle)]
 pub extern "C" fn la_version(version: c_uint) -> c_uint {
     init_logger();
+    export_ffi_control_functions();
     version
 }
 
@@ -173,21 +175,6 @@ pub extern "C" fn la_symbind64(
         // 1. Intercept Runtime API
         intercept_cuda_launch!(cudaLaunchKernel);
         intercept_cuda_launch!(cudaLaunchKernelExC);
-        // if name == "cudaLaunchKernel" {
-        //     if !def_map.is_null() {
-        //         init_runtime_from_map(def_map);
-        //     }
-        //     *flags = LA_SYMB_NOPLTENTER | LA_SYMB_NOPLTEXIT;
-        //     return crate::launch_wrappers::cudaLaunchKernel as uintptr_t;
-        // }
-        
-        // if name == "cudaLaunchKernelExC" {
-        //     if !def_map.is_null() {
-        //         init_runtime_from_map(def_map);
-        //     }
-        //     *flags = LA_SYMB_NOPLTENTER | LA_SYMB_NOPLTEXIT;
-        //     return crate::launch_wrappers::cudaLaunchKernelExC as uintptr_t;
-        // }
 
         macro_rules! intercept_cu_launch {
             ($func_name:ident) => {
@@ -203,21 +190,6 @@ pub extern "C" fn la_symbind64(
         // 2. Intercept Driver API
         intercept_cu_launch!(cuLaunchKernel);
         intercept_cu_launch!(cuLaunchKernelEx);
-        // if name == "cuLaunchKernel" {
-        //     if !def_map.is_null() {
-        //         init_driver_from_map(def_map);
-        //     }
-        //     *flags = LA_SYMB_NOPLTENTER | LA_SYMB_NOPLTEXIT;
-        //     return crate::launch_wrappers::cuLaunchKernel as uintptr_t;
-        // }
-
-        // if name == "cuLaunchKernelEx" {
-        //     if !def_map.is_null() {
-        //         init_driver_from_map(def_map);
-        //     }
-        //     *flags = LA_SYMB_NOPLTENTER | LA_SYMB_NOPLTEXIT;
-        //     return crate::launch_wrappers::cuLaunchKernelEx as uintptr_t;
-        // }
 
         // 3. Intercept NCCL API
         macro_rules! intercept_nccl {
