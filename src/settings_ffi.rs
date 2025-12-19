@@ -30,7 +30,7 @@ pub extern "C" fn hangdetect_set_kernel_exec_label(label: *const c_char) {
         if let Ok(str_slice) = c_str.to_str() {
             monitor::set_kernel_exec_time_user_label(str_slice);
         } else {
-            log::warn!("hangdetect_set_kernel_exec_label: invalid UTF-8 string");
+            eprintln!("[hangdetect][audit] hangdetect_set_kernel_exec_label: invalid UTF-8 string");
         }
     }
 }
@@ -67,19 +67,14 @@ pub fn export_ffi_control_functions() {
                     let block = ptr as *mut FunctionPointerBlock;
                     (*block).enable_fn = enable_addr as u64;
                     (*block).label_fn = label_addr as u64;
-                    
-                    log::debug!(
-                        "[hangdetect][audit] exported FFI fns to /dev/shm/hangdetect_ctl_{}: enable=0x{:x}, label=0x{:x}",
-                        pid, enable_addr, label_addr
-                    );
                 } else {
-                    log::error!("[hangdetect][audit] mmap failed");
+                    eprintln!("[hangdetect][audit] mmap failed");
                 }
             } else {
-                log::error!("[hangdetect][audit] ftruncate failed");
+                eprintln!("[hangdetect][audit] ftruncate failed");
             }
         } else {
-            log::error!("[hangdetect][audit] shm_open failed");
+            eprintln!("[hangdetect][audit] shm_open failed");
         }
     }
 }
