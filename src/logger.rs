@@ -36,7 +36,8 @@ impl Log for FileLogger {
 fn init_file_logger(path: &str, level: LevelFilter) -> Result<(), anyhow::Error> {
     let file = OpenOptions::new()
         .create(true)
-        .append(true)
+        .write(true)
+        .truncate(true)
         .open(path)
         .with_context(|| format!("failed to open log file {}", path))?;
 

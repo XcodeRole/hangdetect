@@ -2,6 +2,7 @@ use super::filter::merge_filter;
 use super::kernel_name_filter::KernelNameFilter;
 use super::logging_aspect::LoggingAspect;
 use super::monitor_aspect::MonitorAspect;
+use crate::logger::init_logger;
 use crate::monitor::kernel_exec_time_aspect::KernelExecTimeAspect;
 use crate::monitor::enabler::Enabler;
 use once_cell::sync::Lazy;
@@ -49,6 +50,9 @@ where
 }
 
 pub static ASPECTS: Lazy<Box<dyn MonitorAspect + Send + Sync>> = Lazy::new(|| {
+    
+    // Lazy initialization of the aspects logger
+    init_logger();
     // Add more aspects here
     let aspect = LoggingAspect {};
     let aspect = merge_aspect(aspect, KernelExecTimeAspect);

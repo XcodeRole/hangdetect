@@ -13,7 +13,6 @@ mod launch_wrappers;
 mod cuda_funcs;
 mod logger;
 mod monitor;
-use crate::logger::init_logger;
 mod settings_ffi;
 use crate::settings_ffi::export_ffi_control_functions;
 
@@ -104,7 +103,6 @@ fn init_driver_from_map(def_map: *mut link_map) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn la_version(version: c_uint) -> c_uint {
-    init_logger();
     export_ffi_control_functions();
     version
 }
